@@ -1,16 +1,52 @@
 # myapp
 
-A new Flutter project.
+Flutter project.
 
-## Getting Started
+// Project Structure
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+// lib/
+// ├── main.dart                  
+// ├── onboarding_screen.dart     
+// ├── splash_screen.dart         
+// ├── bloc/
+// ├── models/
+// │   ├── acteur.dart          
+// │   ├── admin.dart           
+// │   ├── association.dart            
+// │   ├── beneficiaire.dart        
+// │   ├── commentaire.dart          
+// │   ├── dashboard.dart         
+// │   ├── don.dart           
+// │   ├── donateur.dart            
+// │   ├── historique.dart        
+// │   ├── like.dart           
+// │   ├── message.dart           
+// │   ├── note.dart            
+// │   ├── notification.dart        
+// │   ├── post.dart                    
+// │   ├── utilisateur.dart            
+// │   └── utils.dart                
+// ├── routes/
+// │   └── routes.dart           
+// ├── screens/
+// │   ├── admin/admin_home.dart (feed) 
+// │   ├── auth/
+// │   |   ├── AuthGateScreen.dart
+// │   |   ├── connexion.dart      
+// │   |   └── inscription.dart  
+// │   └── utilisateur/
+// │       ├── association/association_home.dart (feed)      
+// │       ├── beneficiaire/beneficiaire_home.dart (feed)
+// │       └── donateur/donateur_home.dart (feed)        
+// ├── services/
+// │   ├── location_select.dart
+// │   ├── notification_service.dart
+// │   ├── SearchService.dart
+// │   └── ZakatService.dart 
+// ├── theme/
+// │   ├── app_pallete.dart       
+// │   └── theme.dart        
+// └──widgets/
+// │   ├── buttons/
+// │   │   ├── sign_out_button.dart
+// │   └── pages/home_base.dart 
