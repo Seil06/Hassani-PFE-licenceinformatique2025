@@ -11,6 +11,7 @@ class Admin extends Acteur {
     required this.prenomAdmin,
     required super.email,
     required super.motDePasse,
+    required super.numCarteIdentite,
     required super.profile,
     required super.dashboard,
     super.posts = const [],
@@ -38,6 +39,7 @@ class Admin extends Acteur {
       prenomAdmin: map['prenom_admin'],
       email: map['email'],
       motDePasse: map['mot_de_passe'],
+      numCarteIdentite: map['num_carte_identite'],
       profile: Profile.fromMap(map['profile']),
       dashboard: Dashboard.fromMap(map['dashboard']),
     );

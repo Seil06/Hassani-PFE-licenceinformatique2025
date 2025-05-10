@@ -1,3 +1,4 @@
+import 'package:myapp/models/don.dart';
 import 'package:myapp/services/SearchService.dart';
 import 'package:myapp/models/note.dart';
 import 'package:myapp/models/like.dart';
@@ -5,17 +6,15 @@ import 'package:myapp/models/commentaire.dart';
 import 'package:myapp/models/utils.dart';
 import 'package:myapp/models/utilisateur.dart';
 
-enum TypePost { officiel, offre, demande, campagne }
-enum TypeDon { financier, materiel, alimentaire, medicament, benevolat, service, autre }
+enum TypePost { officiel, invite, demande, campagne }
 
 class Post {
   final int? idPost;
   final String titre;
   final String description;
   final TypePost typePost;
-  final TypeDon typeDon;
+  final TypeDon? typeDon;
   final String? image;
-  final String? video;
   final String lieuActeur;
   final DateTime? dateLimite;
   final double? latitude;
@@ -24,8 +23,9 @@ class Post {
   final List<Like> likes;
   final List<Commentaire> commentaires;
   final List<Utilisateur> utilisateursTaguer;
-  final List<Mot_cles> motsCles;
-  final int idActeur; // Added to store the actor who created the post
+  final List<MotCles> motsCles;
+  final int idActeur;
+  final Don? don;
   double _noteMoyenne = 0.0;
 
   Post({
@@ -33,9 +33,8 @@ class Post {
     required this.titre,
     required this.description,
     required this.typePost,
-    required this.typeDon,
+    this.typeDon,
     this.image,
-    this.video,
     required this.lieuActeur,
     this.dateLimite,
     this.latitude,
@@ -45,7 +44,8 @@ class Post {
     this.commentaires = const [],
     this.utilisateursTaguer = const [],
     this.motsCles = const [],
-    required this.idActeur, // Required field
+    required this.idActeur,
+    this.don,
   }) {
     if (titre.isEmpty) throw ArgumentError('Le titre ne peut pas être vide');
     if (description.isEmpty) throw ArgumentError('La description ne peut pas être vide');
@@ -64,16 +64,15 @@ class Post {
       'titre': titre,
       'description': description,
       'type_post': typePost.name,
-      'type_don': typeDon.name,
+      'type_don': typeDon?.name,
       'image': image,
-      'video': video,
-      'lieu_acteur': lieuActeur,
-      'date_limite': dateLimite?.toIso8601String(),
-      'location': latitude != null && longitude != null
+      'adresse_utilisateur': latitude != null && longitude != null
           ? 'POINT($longitude $latitude)'
           : null,
+      'date_limite': dateLimite?.toIso8601String(),
       'note_moyenne': _noteMoyenne,
-      'id_acteur': idActeur, // Added to map
+      'id_acteur': idActeur,
+      'id_don': don?.idDon,
     };
   }
 
@@ -83,21 +82,21 @@ class Post {
       titre: map['titre'],
       description: map['description'],
       typePost: TypePost.values.byName(map['type_post']),
-      typeDon: TypeDon.values.byName(map['type_don']),
+      typeDon: map['type_don'] != null ? TypeDon.values.byName(map['type_don']) : null,
       image: map['image'],
-      video: map['video'],
-      lieuActeur: map['lieu_acteur'],
+      lieuActeur: map['lieu_acteur'] ?? '',
       dateLimite: map['date_limite'] != null
           ? DateTime.parse(map['date_limite'])
           : null,
-      latitude: map['location'] != null
-          ? GeoUtils.parsePoint(map['location'])['latitude']
+      latitude: map['adresse_utilisateur'] != null
+          ? GeoUtils.parsePoint(map['adresse_utilisateur'])['latitude']
           : null,
-      longitude: map['location'] != null
-          ? GeoUtils.parsePoint(map['location'])['longitude']
+      longitude: map['adresse_utilisateur'] != null
+          ? GeoUtils.parsePoint(map['adresse_utilisateur'])['longitude']
           : null,
       motsCles: [], // Load via separate query
-      idActeur: map['id_acteur'], // Added to map
+      idActeur: map['id_acteur'],
+      don: map['id_don'] != null ? Don.fromMap(map['don']) : null,
     );
     post._noteMoyenne = map['note_moyenne'] ?? 0.0;
     return post;

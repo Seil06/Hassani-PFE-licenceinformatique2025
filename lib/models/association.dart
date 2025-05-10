@@ -8,6 +8,7 @@ import 'package:myapp/models/note.dart';
 import 'package:myapp/models/post.dart';
 import 'package:myapp/models/utils.dart';
 import 'package:myapp/models/utilisateur.dart';
+import 'package:myapp/models/zakat.dart';
 import 'package:myapp/services/SearchService.dart';
 
 class Association extends Utilisateur {
@@ -15,9 +16,10 @@ class Association extends Utilisateur {
   final String documentAuthorisation;
   final bool statutValidation;
   final List<Campagne> campagnes;
-  final List<Post> followedPosts;
   final List<Campagne> followedCampagnes;
   final List<Don> dons;
+  final List<Zakat> zakats;
+
 
   Association({
     super.id,
@@ -39,10 +41,10 @@ class Association extends Utilisateur {
     super.historiques = const [],
     super.followers = const [],
     super.avertissements = const [],
-    this.followedPosts = const [],
     this.followedCampagnes = const [],
     this.dons = const [],
-  }) : super(typeU: TypeUtilisateur.association) {
+    this.zakats = const [],
+  }) : super(typeU: TypeUtilisateur.association, numCarteIdentite: 'defaultNumCarteIdentite') {
     if (nomAssociation.isEmpty) throw ArgumentError('Le nom de l’association ne peut pas être vide');
     if (documentAuthorisation.isEmpty) throw ArgumentError('Le document d’autorisation ne peut pas être vide');
   }
@@ -76,19 +78,13 @@ class Association extends Utilisateur {
       profile: Profile.fromMap(map['profile']),
       dashboard: Dashboard.fromMap(map['dashboard']),
       dons: [], // Load via separate query
+      zakats: [], // Load via separate query
     );
   }
 }
 
 enum TypeCampagne { evenement, volontariat, sensibilisation, collecte }
-enum EtatCampagne {
-  brouillon,
-  publiee,
-  enCours,
-  objectif_atteint,
-  annulee,
-  cloturee,
-}
+enum EtatCampagne { brouillon, publiee, enCours, objectif_atteint, annulee, cloturee}
 
 class Campagne extends Post {
   final EtatCampagne etatCampagne;
@@ -100,7 +96,8 @@ class Campagne extends Post {
   final double montantRecolte;
   final int nombreParticipants;
   final List<Donateur> participants;
-  List<int> followers; 
+  final int idAssociation;
+  List<int> followers;
 
   Campagne({
     super.idPost,
@@ -118,7 +115,6 @@ class Campagne extends Post {
     this.nombreParticipants = 0,
     this.followers = const [],
     super.image,
-    super.video,
     super.dateLimite,
     super.latitude,
     super.longitude,
@@ -128,6 +124,7 @@ class Campagne extends Post {
     super.utilisateursTaguer = const [],
     super.motsCles = const [],
     required super.idActeur,
+    required this.idAssociation,
     this.participants = const [],
   }) : super(typePost: TypePost.campagne) {
     if (montantObjectif < 0) throw ArgumentError('L’objectif ne peut pas être négatif');
@@ -151,97 +148,98 @@ class Campagne extends Post {
       'nombre_participants': nombreParticipants,
       'followers': followers,
       'id_acteur': idActeur,
+      'id_association': idAssociation,
     };
   }
 
   factory Campagne.fromMap(Map<String, dynamic> map) {
-  return Campagne(
-    idPost: map['id_campagne'],
-    titre: map['titre'],
-    description: map['description'],
-    typeDon: TypeDon.values.byName(map['type_don']),
-    lieuActeur: map['lieu_acteur'],
-    typeCampagne: TypeCampagne.values.byName(map['type_campagne']),
-    etatCampagne: EtatCampagne.values.byName(map['etat_campagne']),
-    dateDebut: map['date_debut'] != null ? DateTime.parse(map['date_debut']) : null,
-    dateFin: map['date_fin'] != null ? DateTime.parse(map['date_fin']) : null,
-    lieuEvenement: map['lieu_evenement'],
-    montantObjectif: map['montant_objectif'] != null
-        ? double.tryParse(map['montant_objectif'].toString()) ?? 0.0
-        : 0.0, // Fallback to 0.0 if invalid
-    montantRecolte: map['montant_recolte'] != null
-        ? double.tryParse(map['montant_recolte'].toString()) ?? 0.0
-        : 0.0, // Fallback to 0.0 if invalid
-    nombreParticipants: map['nombre_participants'] as int? ?? 0,
-    image: map['image'],
-    video: map['video'],
-    dateLimite: map['date_limite'] != null ? DateTime.parse(map['date_limite']) : null,
-    latitude: map['location'] != null
-        ? GeoUtils.parsePoint(map['location'])['latitude'] ?? 0.0
-        : null, // Fallback to null if location is invalid
-    longitude: map['location'] != null
-        ? GeoUtils.parsePoint(map['location'])['longitude'] ?? 0.0
-        : null, // Fallback to null if location is invalid
-    idActeur: map['id_acteur'],
-    participants: [], // Load via separate query
-  );
-}
+    return Campagne(
+      idPost: map['id_campagne'],
+      titre: map['titre'],
+      description: map['description'],
+      typeDon: TypeDon.values.byName(map['type_don']),
+      lieuActeur: map['lieu_acteur'],
+      typeCampagne: TypeCampagne.values.byName(map['type_campagne']),
+      etatCampagne: EtatCampagne.values.byName(map['etat_campagne']),
+      dateDebut: map['date_debut'] != null ? DateTime.parse(map['date_debut']) : null,
+      dateFin: map['date_fin'] != null ? DateTime.parse(map['date_fin']) : null,
+      lieuEvenement: map['lieu_evenement'],
+      montantObjectif: map['montant_objectif'] != null
+          ? double.tryParse(map['montant_objectif'].toString()) ?? 0.0
+          : 0.0,
+      montantRecolte: map['montant_recolte'] != null
+          ? double.tryParse(map['montant_recolte'].toString()) ?? 0.0
+          : 0.0,
+      nombreParticipants: map['nombre_participants'] as int? ?? 0,
+      image: map['image'],
+      dateLimite: map['date_limite'] != null ? DateTime.parse(map['date_limite']) : null,
+      latitude: map['location'] != null
+          ? GeoUtils.parsePoint(map['location'])['latitude'] ?? 0.0
+          : null,
+      longitude: map['location'] != null
+          ? GeoUtils.parsePoint(map['location'])['longitude'] ?? 0.0
+          : null,
+      idActeur: map['id_acteur'],
+      idAssociation: map['id_association'],
+      participants: [], // Load via separate query
+    );
+  }
 
   Campagne copyWith({
-  int? idPost,
-  String? titre,
-  String? description,
-  TypeDon? typeDon,
-  String? lieuActeur,
-  TypeCampagne? typeCampagne,
-  EtatCampagne? etatCampagne,
-  DateTime? dateDebut,
-  DateTime? dateFin,
-  String? lieuEvenement,
-  double? montantObjectif,
-  double? montantRecolte,
-  int? nombreParticipants,
-  String? image,
-  String? video,
-  DateTime? dateLimite,
-  double? latitude,
-  double? longitude,
-  List<Note>? notes,
-  List<Like>? likes,
-  List<Commentaire>? commentaires,
-  List<Utilisateur>? utilisateursTaguer,
-  List<Mot_cles>? motsCles,
-  int? idActeur,
-  List<Donateur>? participants,
-  List<int>? followers, // Added followers parameter
-}) {
-  return Campagne(
-    idPost: idPost ?? this.idPost,
-    titre: titre ?? this.titre,
-    description: description ?? this.description,
-    typeDon: typeDon ?? this.typeDon,
-    lieuActeur: lieuActeur ?? this.lieuActeur,
-    typeCampagne: typeCampagne ?? this.typeCampagne,
-    etatCampagne: etatCampagne ?? this.etatCampagne,
-    dateDebut: dateDebut ?? this.dateDebut,
-    dateFin: dateFin ?? this.dateFin,
-    lieuEvenement: lieuEvenement ?? this.lieuEvenement,
-    montantObjectif: montantObjectif ?? this.montantObjectif,
-    montantRecolte: montantRecolte ?? this.montantRecolte,
-    nombreParticipants: nombreParticipants ?? this.nombreParticipants,
-    image: image ?? this.image,
-    video: video ?? this.video,
-    dateLimite: dateLimite ?? this.dateLimite,
-    latitude: latitude ?? this.latitude,
-    longitude: longitude ?? this.longitude,
-    notes: notes ?? this.notes,
-    likes: likes ?? this.likes,
-    commentaires: commentaires ?? this.commentaires,
-    utilisateursTaguer: utilisateursTaguer ?? this.utilisateursTaguer,
-    motsCles: motsCles ?? this.motsCles,
-    idActeur: idActeur ?? this.idActeur,
-    participants: participants ?? this.participants,
-    followers: followers ?? this.followers, // Added followers field
-  );
-}
+    int? idPost,
+    String? titre,
+    String? description,
+    TypeDon? typeDon,
+    String? lieuActeur,
+    TypeCampagne? typeCampagne,
+    EtatCampagne? etatCampagne,
+    DateTime? dateDebut,
+    DateTime? dateFin,
+    String? lieuEvenement,
+    double? montantObjectif,
+    double? montantRecolte,
+    int? nombreParticipants,
+    String? image,
+    DateTime? dateLimite,
+    double? latitude,
+    double? longitude,
+    List<Note>? notes,
+    List<Like>? likes,
+    List<Commentaire>? commentaires,
+    List<Utilisateur>? utilisateursTaguer,
+    List<MotCles>? motsCles,
+    int? idActeur,
+    int? idAssociation,
+    List<Donateur>? participants,
+    List<int>? followers,
+  }) {
+    return Campagne(
+      idPost: idPost ?? this.idPost,
+      titre: titre ?? this.titre,
+      description: description ?? this.description,
+      typeDon: typeDon ?? this.typeDon,
+      lieuActeur: lieuActeur ?? this.lieuActeur,
+      typeCampagne: typeCampagne ?? this.typeCampagne,
+      etatCampagne: etatCampagne ?? this.etatCampagne,
+      dateDebut: dateDebut ?? this.dateDebut,
+      dateFin: dateFin ?? this.dateFin,
+      lieuEvenement: lieuEvenement ?? this.lieuEvenement,
+      montantObjectif: montantObjectif ?? this.montantObjectif,
+      montantRecolte: montantRecolte ?? this.montantRecolte,
+      nombreParticipants: nombreParticipants ?? this.nombreParticipants,
+      image: image ?? this.image,
+      dateLimite: dateLimite ?? this.dateLimite,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      notes: notes ?? this.notes,
+      likes: likes ?? this.likes,
+      commentaires: commentaires ?? this.commentaires,
+      utilisateursTaguer: utilisateursTaguer ?? this.utilisateursTaguer,
+      motsCles: motsCles ?? this.motsCles,
+      idActeur: idActeur ?? this.idActeur,
+      idAssociation: idAssociation ?? this.idAssociation,
+      participants: participants ?? this.participants,
+      followers: followers ?? this.followers,
+    );
+  }
 }

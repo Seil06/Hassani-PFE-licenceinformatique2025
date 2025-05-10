@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb; // For platform detection
 import 'package:flutter/material.dart';
 import 'package:myapp/routes/routes.dart';
-//import 'package:myapp/services/location_selection.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:myapp/main.dart';
 import 'package:myapp/theme/app_pallete.dart';
@@ -30,9 +29,10 @@ class _InscriptionState extends State<Inscription> {
   final nomController = TextEditingController();
   final prenomController = TextEditingController();
   final nomAssociationController = TextEditingController();
+  final numCarteIdentiteController = TextEditingController();
   final formKey = GlobalKey<FormState>();
   bool _isLoading = false;
-  PlatformFile? _selectedFile; // Store the selected file information
+  PlatformFile? _selectedFile; // Store the selected file information (for association or beneficiaire)
   String? _fileName; // Store the selected file name for display
 
   // List of options for type_beneficiaire dropdown (matches schema)
@@ -118,11 +118,20 @@ class _InscriptionState extends State<Inscription> {
   Future<void> _signUp() async {
     if (!formKey.currentState!.validate()) return;
 
-    // Validate file for association
+    // Validate file for association or beneficiaire
     if (userType == 'association' && _selectedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Veuillez sélectionner un document d\'autorisation'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (userType == 'bénéficiaire' && _selectedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez sélectionner un document de situation'),
           backgroundColor: Colors.red,
         ),
       );
@@ -137,6 +146,9 @@ class _InscriptionState extends State<Inscription> {
       final email = emailController.text.trim().toLowerCase();
       final password = passwordController.text.trim();
       final hashedPassword = _hashPassword(password);
+      final numCarteIdentite = numCarteIdentiteController.text.trim().isEmpty
+          ? null
+          : numCarteIdentiteController.text.trim();
 
       // Step 1: Sign up with Supabase Auth
       final authResponse = await supabase.auth.signUp(
@@ -151,11 +163,11 @@ class _InscriptionState extends State<Inscription> {
           .from('profile')
           .insert({
             'photo_url': null,
-            'bio': null
+            'bio': null,
           })
           .select('id_profile')
           .single();
-      
+
       final profileId = profileResponse['id_profile'] as int;
 
       // Step 3: Create historique
@@ -165,22 +177,22 @@ class _InscriptionState extends State<Inscription> {
             'date': DateTime.now().toIso8601String(),
             'action': 'Compte créé',
             'details': 'Création d’un nouveau compte utilisateur',
-            'id_acteur': null
+            'id_acteur': null,
           })
           .select('id_historique')
           .single();
-      
+
       final historiqueId = historiqueResponse['id_historique'] as int;
 
       // Step 4: Create dashboard
       final dashboardResponse = await supabase
           .from('dashboard')
           .insert({
-            'id_historique': historiqueId
+            'id_historique': historiqueId,
           })
           .select('id_dashboard')
           .single();
-      
+
       final dashboardId = dashboardResponse['id_dashboard'] as int;
 
       // Step 5: Create acteur with supabase_user_id
@@ -197,7 +209,7 @@ class _InscriptionState extends State<Inscription> {
           })
           .select('id_acteur')
           .single();
-      
+
       final idActeur = acteurResponse['id_acteur'] as int;
 
       // Step 6: Update historique with id_acteur
@@ -206,26 +218,28 @@ class _InscriptionState extends State<Inscription> {
           .update({'id_acteur': idActeur})
           .eq('id_historique', historiqueId);
 
-      // Step 7: Insert into utilisateur table with normalized userType
+      // Step 7: Insert into utilisateur table with normalized userType and num_carte_identite
       await supabase.from('utilisateur').insert({
         'id_acteur': idActeur,
         'type_utilisateur': _normalizeUserType(userType),
         'telephone': null,
         'adresse': null,
-        'location': null, // Will be updated later if needed
+        'adresse_utilisateur': null, // Will be updated later if needed
+        'num_carte_identite': numCarteIdentite,
       });
 
       // Step 8: Insert into the appropriate user type table
       String documentUrl = '';
-      if (userType == 'association' && _selectedFile != null) {
-        // Upload the file to Supabase Storage
-        final fileName = '${idActeur}_document_autorisation.${_fileName!.split('.').last}';
-        
+      if (_selectedFile != null) {
+        // Determine storage bucket based on user type
+        final bucket = userType == 'association' ? 'association-documents' : 'beneficiaire-documents';
+        final fileName = '${idActeur}_document_${userType}.${_fileName!.split('.').last}';
+
         if (kIsWeb) {
           // On web, use the bytes from PlatformFile
           if (_selectedFile!.bytes != null) {
             await supabase.storage
-                .from('association-documents')
+                .from(bucket)
                 .uploadBinary(fileName, _selectedFile!.bytes!);
           } else {
             throw Exception('File bytes are not available');
@@ -234,12 +248,12 @@ class _InscriptionState extends State<Inscription> {
           // On mobile/desktop, use the File object to read bytes
           final file = io.File(_selectedFile!.path!);
           await supabase.storage
-              .from('association-documents')
+              .from(bucket)
               .uploadBinary(fileName, await file.readAsBytes());
         }
 
         // Get the public URL of the uploaded file
-        documentUrl = supabase.storage.from('association-documents').getPublicUrl(fileName);
+        documentUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
       }
 
       switch (userType) {
@@ -254,7 +268,7 @@ class _InscriptionState extends State<Inscription> {
           await supabase.from('association').insert({
             'id_acteur': idActeur,
             'nom_association': nomAssociationController.text.trim(),
-            'document_authorisation': documentUrl, // Store the file URL
+            'document_authorisation': documentUrl,
             'statut_validation': false,
           });
           break;
@@ -264,11 +278,12 @@ class _InscriptionState extends State<Inscription> {
             'nom': nomController.text.trim(),
             'prenom': prenomController.text.trim(),
             'type_beneficiaire': typeBeneficiaire ?? 'autre',
+            'document_situation': documentUrl,
           });
           break;
       }
 
-      // Step 9: Redirect to respective home pages instead of LocationSelectionPage
+      // Step 9: Redirect to respective home pages
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Inscription réussie ! Bienvenue !')),
       );
@@ -276,13 +291,13 @@ class _InscriptionState extends State<Inscription> {
       String nextRoute = '/login'; // Default fallback
       switch (userType) {
         case 'donateur':
-          nextRoute = RouteGenerator.donateurHome; 
+          nextRoute = RouteGenerator.donateurHome;
           break;
         case 'association':
-          nextRoute = RouteGenerator.associationHome; 
+          nextRoute = RouteGenerator.associationHome;
           break;
         case 'bénéficiaire':
-          nextRoute = RouteGenerator.beneficiaireHome; 
+          nextRoute = RouteGenerator.beneficiaireHome;
           break;
       }
       Navigator.pushReplacementNamed(context, nextRoute);
@@ -294,6 +309,9 @@ class _InscriptionState extends State<Inscription> {
         } else {
           errorMessage = error.message;
         }
+      } else if (error.toString().contains('unique constraint') &&
+                 error.toString().contains('num_carte_identite')) {
+        errorMessage = 'Ce numéro de carte d\'identité est déjà utilisé.';
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -315,6 +333,7 @@ class _InscriptionState extends State<Inscription> {
     nomController.dispose();
     prenomController.dispose();
     nomAssociationController.dispose();
+    numCarteIdentiteController.dispose();
     super.dispose();
   }
 
@@ -435,46 +454,6 @@ class _InscriptionState extends State<Inscription> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      if (userType == 'bénéficiaire') ...[
-                        Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: DropdownButtonFormField<String>(
-                            value: typeBeneficiaire,
-                            decoration: const InputDecoration(
-                              labelText: 'Statut',
-                              prefixIcon: Icon(Icons.category),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              border: InputBorder.none,
-                            ),
-                            isExpanded: true,
-                            hint: const Text('Sélectionnez votre situation'),
-                            items: beneficiaireTypes
-                                .map((type) => DropdownMenuItem(
-                                      value: type,
-                                      child: Text(
-                                        _formatBeneficiaireType(type),
-                                        overflow: TextOverflow.ellipsis, // Handle text overflow
-                                      ),
-                                    ))
-                                .toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                typeBeneficiaire = value;
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null) {
-                                return 'Type de bénéficiaire requis';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
                     ],
                     if (userType == 'association') ...[
                       TextFormField(
@@ -489,6 +468,61 @@ class _InscriptionState extends State<Inscription> {
                           }
                           return null;
                         },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    TextFormField(
+                      controller: numCarteIdentiteController,
+                      decoration: const InputDecoration(
+                        labelText: 'Numéro de carte d\'identité biométrique',
+                        hintText: 'Ex: 123456789012345678',
+                        prefixIcon: Icon(Icons.card_membership),
+                      ),
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty && value.length == 18) {
+                          return 'Le numéro doit avoir exactement 18 caractères';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    if (userType == 'bénéficiaire') ...[
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          value: typeBeneficiaire,
+                          decoration: const InputDecoration(
+                            labelText: 'Statut',
+                            prefixIcon: Icon(Icons.category),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: InputBorder.none,
+                          ),
+                          isExpanded: true,
+                          hint: const Text('Sélectionnez votre situation'),
+                          items: beneficiaireTypes
+                              .map((type) => DropdownMenuItem(
+                                    value: type,
+                                    child: Text(
+                                      _formatBeneficiaireType(type),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              typeBeneficiaire = value;
+                            });
+                          },
+                          validator: (value) {
+                            if (value == null) {
+                              return 'Type de bénéficiaire requis';
+                            }
+                            return null;
+                          },
+                        ),
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -526,8 +560,8 @@ class _InscriptionState extends State<Inscription> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    // File picker for Association (placed after password field)
-                    if (userType == 'association') ...[
+                    // File picker for Association or Bénéficiaire
+                    if (userType == 'association' || userType == 'bénéficiaire') ...[
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -543,9 +577,11 @@ class _InscriptionState extends State<Inscription> {
                                 : Icon(Icons.cloud_upload, color: LightAppPallete.primary, size: 48),
                             const SizedBox(height: 12),
                             Text(
-                              _fileName != null 
-                                  ? 'Document sélectionné: $_fileName' 
-                                  : 'Déposer votre document d\'autorisation ici',
+                              _fileName != null
+                                  ? 'Document sélectionné: $_fileName'
+                                  : userType == 'association'
+                                      ? 'Déposer votre document d\'autorisation ici'
+                                      : 'Déposer votre document de situation ici',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: _fileName != null ? Colors.black87 : Colors.grey.shade700,

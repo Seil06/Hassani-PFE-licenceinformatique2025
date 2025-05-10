@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:myapp/routes/routes.dart';
+import 'package:myapp/theme/app_pallete.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-//import 'package:myapp/main.dart';
-import 'package:myapp/routes/routes.dart';
 import 'package:http/http.dart' as http;
 
 class LocationSelectionPage extends StatefulWidget {
@@ -31,7 +31,7 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
   bool _isLocationServiceEnabled = false;
   final TextEditingController _searchController = TextEditingController();
   List<dynamic> _placeSuggestions = [];
-  final String _googleApiKey = 'AIzaSyDm7nwkWyl3djkqjOS6-Ygg-shDVT-1aKI'; 
+  final String _googleApiKey = 'AIzaSyDm7nwkWyl3djkqjOS6-Ygg-shDVT-1aKI';
 
   static const CameraPosition _kInitialPosition = CameraPosition(
     target: LatLng(36.737232, 3.086964), // Default to Algiers
@@ -181,7 +181,7 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
     try {
       final supabase = Supabase.instance.client;
       final response = await supabase.from('utilisateur').update({
-        'location': 'POINT(${_selectedLocation!.longitude} ${_selectedLocation!.latitude})',
+        'adresse_utilisateur': 'POINT(${_selectedLocation!.longitude} ${_selectedLocation!.latitude})',
       }).eq('id_acteur', widget.idActeur);
 
       if (response.error != null) {
@@ -440,7 +440,7 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
                         )
                       : const Text('Confirmer la localisation'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green[600],
+                    backgroundColor: LightAppPallete.primaryLight,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -451,7 +451,7 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
                   onPressed: _navigateToDashboard,
                   child: const Text('Passer cette étape'),
                   style: TextButton.styleFrom(
-                    foregroundColor: Colors.green[600],
+                    foregroundColor: LightAppPallete.primaryLight,
                     side: BorderSide(color: Colors.green[600]!),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

@@ -3,19 +3,32 @@ import 'package:myapp/models/utilisateur.dart';
 class Like {
   final int? idLike;
   final DateTime dateLike;
-  final Utilisateur auteur;
+  final Utilisateur utilisateur;
+  final int? idPost;
+  final int? idCampagne;
 
   Like({
     this.idLike,
     required this.dateLike,
-    required this.auteur,
-  });
+    required this.utilisateur,
+    this.idPost,
+    this.idCampagne,
+  }) {
+    if (idPost == null && idCampagne == null) {
+      throw ArgumentError('Un like doit être associé à un post ou une campagne');
+    }
+    if (idPost != null && idCampagne != null) {
+      throw ArgumentError('Un like ne peut pas être associé à un post et une campagne simultanément');
+    }
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'id_like': idLike,
       'date_like': dateLike.toIso8601String(),
-      'id_utilisateur': auteur.id,
+      'id_utilisateur': utilisateur.id,
+      'id_post': idPost,
+      'id_campagne': idCampagne,
     };
   }
 
@@ -23,7 +36,9 @@ class Like {
     return Like(
       idLike: map['id_like'],
       dateLike: DateTime.parse(map['date_like']),
-      auteur: Utilisateur.fromMap(map['auteur']),
+      utilisateur: Utilisateur.fromMap(map['utilisateur']),
+      idPost: map['id_post'],
+      idCampagne: map['id_campagne'],
     );
   }
 }

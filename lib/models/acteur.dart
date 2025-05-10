@@ -13,6 +13,7 @@ class Acteur {
   final TypeActeur typeA;
   final String email;
   final String motDePasse;
+  final String numCarteIdentite;
   final Profile profile;
   final Dashboard dashboard;
   final List<Post>? posts;
@@ -26,6 +27,7 @@ class Acteur {
     required this.typeA,
     required this.email,
     required this.motDePasse,
+    required this.numCarteIdentite,
     required this.profile,
     required this.dashboard,
     this.posts = const [],
@@ -35,6 +37,7 @@ class Acteur {
   }) {
     if (!EmailValidator.validate(email)) throw ArgumentError('Email invalide');
     if (motDePasse.length < 8) throw ArgumentError('Le mot de passe doit contenir au moins 8 caractères');
+    if (numCarteIdentite.length > 18 || numCarteIdentite.length < 18) throw ArgumentError('Numéro de carte d’identité invalide');
   }
 
   double get noteMoyenne => _noteMoyenne;
@@ -49,6 +52,7 @@ class Acteur {
       'type_acteur': typeA.name,
       'email': email,
       'mot_de_passe': motDePasse,
+      'num_carte_identite': numCarteIdentite,
       'id_profile': profile.idProfile,
       'id_dashboard': dashboard.idDashboard,
       'note_moyenne': _noteMoyenne,
@@ -61,6 +65,7 @@ class Acteur {
       typeA: TypeActeur.values.byName(map['type_acteur']),
       email: map['email'],
       motDePasse: map['mot_de_passe'],
+      numCarteIdentite: map['num_carte_identite'],
       profile: Profile.fromMap(map['profile']),
       dashboard: Dashboard.fromMap(map['dashboard']),
     );
@@ -82,11 +87,13 @@ class Profile {
   final int? idProfile;
   final String? photoUrl;
   final String? bio;
+  final int idDashboard;
 
   Profile({
     this.idProfile,
     this.photoUrl,
     this.bio,
+    required this.idDashboard,
   });
 
   Map<String, dynamic> toMap() {
@@ -94,6 +101,7 @@ class Profile {
       'id_profile': idProfile,
       'photo_url': photoUrl,
       'bio': bio,
+      'id_dashboard': idDashboard,
     };
   }
 
@@ -102,6 +110,7 @@ class Profile {
       idProfile: map['id_profile'],
       photoUrl: map['photo_url'],
       bio: map['bio'],
+      idDashboard: map['id_dashboard'],
     );
   }
 }

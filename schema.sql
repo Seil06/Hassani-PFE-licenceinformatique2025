@@ -1,7 +1,7 @@
 -- Enable PostGIS extension for geographic data
 CREATE EXTENSION IF NOT EXISTS postgis;
 
--- Table: Mot_cle (pour représenter l'enum Mot_cles)
+-- Table: mot_cle (pour représenter l'enum Mot_cles)
 CREATE TABLE mot_cle (
     id_mot_cle SERIAL PRIMARY KEY,
     nom VARCHAR(50) NOT NULL UNIQUE,
@@ -20,12 +20,23 @@ INSERT INTO mot_cle (nom) VALUES
     ('sante'), ('medicament'), ('marriage'), ('mosquee'), ('vetement'), ('vetementHivers'),
     ('inondations'), ('tremblementDeTerre'), ('refuges'), ('femmes'), ('reservoirsOxygene'), ('autre');
 
--- Table: Dashboard
-CREATE TABLE dashboard (
-    id_dashboard SERIAL PRIMARY KEY
+-- Table: historique
+CREATE TABLE historique (
+    id_historique SERIAL PRIMARY KEY,
+    date TIMESTAMP NOT NULL,
+    action VARCHAR(255) NOT NULL,
+    details TEXT NOT NULL,
+    id_acteur INT
 );
 
--- Table: Profile
+-- Table: dashboard
+CREATE TABLE dashboard (
+    id_dashboard SERIAL PRIMARY KEY,
+    id_historique INT NOT NULL,
+    CONSTRAINT fk_historique FOREIGN KEY (id_historique) REFERENCES historique(id_historique)
+);
+
+-- Table: profile
 CREATE TABLE profile (
     id_profile SERIAL PRIMARY KEY,
     photo_url TEXT,
@@ -34,41 +45,33 @@ CREATE TABLE profile (
     CONSTRAINT fk_dashboard FOREIGN KEY (id_dashboard) REFERENCES dashboard(id_dashboard)
 );
 
--- Table: Historique
-CREATE TABLE historique (
-    id_historique SERIAL PRIMARY KEY,
-    date TIMESTAMP NOT NULL,
-    action VARCHAR(255) NOT NULL,
-    details TEXT NOT NULL,
-    id_acteur INT -- FK sera ajoutée plus tard
-);
-
--- Table: Acteur 
+-- Table: acteur
 CREATE TABLE acteur (
     id_acteur SERIAL PRIMARY KEY,
     type_acteur VARCHAR(50) NOT NULL CHECK (type_acteur IN ('admin', 'utilisateur')),
     email VARCHAR(255) NOT NULL UNIQUE,
     mot_de_passe VARCHAR(255) NOT NULL,
-    num_carte_identite VARCHAR(18) NOT NULL,
     id_profile INT NOT NULL,
     note_moyenne FLOAT DEFAULT 0.0 CHECK (note_moyenne >= 0 AND note_moyenne <= 5),
+    supabase_user_id VARCHAR(36),
     CONSTRAINT fk_profile FOREIGN KEY (id_profile) REFERENCES profile(id_profile)
 );
 
--- Ajout de la clé étrangère pour historique
+-- Update historique to add foreign key after acteur is created
 ALTER TABLE historique
 ADD CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur);
 
--- Table: Utilisateur
+-- Table: utilisateur
 CREATE TABLE utilisateur (
     id_acteur INT PRIMARY KEY,
     type_utilisateur VARCHAR(50) NOT NULL CHECK (type_utilisateur IN ('donateur', 'association', 'beneficiaire')),
     telephone VARCHAR(20),
-    adresse_utilisateur GEOGRAPHY(POINT) NOT NULL,
+    adresse_utilisateur GEOGRAPHY(POINT),
+    num_carte_identite VARCHAR(18) UNIQUE,
     CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
 );
 
--- Table: Admin
+-- Table: admin
 CREATE TABLE admin (
     id_acteur INT PRIMARY KEY,
     nom_admin VARCHAR(100) NOT NULL,
@@ -76,7 +79,7 @@ CREATE TABLE admin (
     CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
 );
 
--- Table: Donateur
+-- Table: donateur
 CREATE TABLE donateur (
     id_acteur INT PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
@@ -84,7 +87,7 @@ CREATE TABLE donateur (
     CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES utilisateur(id_acteur)
 );
 
--- Table: Association
+-- Table: association
 CREATE TABLE association (
     id_acteur INT PRIMARY KEY,
     nom_association VARCHAR(255) NOT NULL,
@@ -93,7 +96,7 @@ CREATE TABLE association (
     CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES utilisateur(id_acteur)
 );
 
--- Table: Beneficiaire
+-- Table: beneficiaire
 CREATE TABLE beneficiaire (
     id_acteur INT PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
@@ -103,7 +106,38 @@ CREATE TABLE beneficiaire (
     CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES utilisateur(id_acteur)
 );
 
--- Table: Don 
+-- Table: post (without id_don foreign key initially)
+CREATE TABLE post (
+    id_post SERIAL PRIMARY KEY,
+    titre VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    type_post VARCHAR(50) NOT NULL CHECK (type_post IN ('officiel', 'invite', 'demande', 'campagne')),
+    image TEXT,
+    date_limite TIMESTAMP,
+    adresse_utilisateur GEOGRAPHY(POINT),
+    note_moyenne FLOAT DEFAULT 0.0 CHECK (note_moyenne >= 0 AND note_moyenne <= 5),
+    id_acteur INT NOT NULL,
+    id_don INT,
+    CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
+);
+
+-- Table: campagne
+CREATE TABLE campagne (
+    id_campagne INT PRIMARY KEY,
+    etat_campagne VARCHAR(50) NOT NULL CHECK (etat_campagne IN ('brouillon', 'publiee', 'enCours', 'objectif_atteint', 'annulee', 'cloturee')),
+    date_debut TIMESTAMP NOT NULL,
+    date_fin TIMESTAMP NOT NULL,
+    lieu_evenement GEOGRAPHY(POINT) NOT NULL,
+    type_campagne VARCHAR(50) NOT NULL CHECK (type_campagne IN ('evenement', 'volontariat', 'sensibilisation', 'collecte')),
+    montant_objectif FLOAT DEFAULT 0.0 CHECK (montant_objectif >= 0),
+    montant_recolte FLOAT DEFAULT 0.0 CHECK (montant_recolte >= 0),
+    nombre_participants INT DEFAULT 0,
+    id_association INT NOT NULL,
+    CONSTRAINT fk_post FOREIGN KEY (id_campagne) REFERENCES post(id_post),
+    CONSTRAINT fk_association FOREIGN KEY (id_association) REFERENCES association(id_acteur)
+);
+
+-- Table: don
 CREATE TABLE don (
     id_don SERIAL PRIMARY KEY,
     num_carte_bancaire VARCHAR(16) NOT NULL,
@@ -126,43 +160,11 @@ CREATE TABLE don (
     )
 );
 
--- Table: Post
-CREATE TABLE post (
-    id_post SERIAL PRIMARY KEY,
-    titre VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL,
-    type_post VARCHAR(50) NOT NULL CHECK (type_post IN ('officiel', 'invite', 'demande', 'campagne')),
-    image TEXT,
-    date_limite TIMESTAMP,
-    adresse_utilisateur GEOGRAPHY(POINT),
-    note_moyenne FLOAT DEFAULT 0.0 CHECK (note_moyenne >= 0 AND note_moyenne <= 5),
-    id_acteur INT NOT NULL,
-    id_don INT,
-    CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur),
-    CONSTRAINT fk_don FOREIGN KEY (id_don) REFERENCES don(id_don),
-    CONSTRAINT check_post_creator CHECK (
-        EXISTS (
-            SELECT 1
-            FROM acteur a
-            LEFT JOIN utilisateur u ON a.id_acteur = u.id_acteur
-            WHERE a.id_acteur = post.id_acteur
-            AND (a.type_acteur = 'admin' OR u.type_utilisateur IN ('donateur', 'beneficiaire'))
-        )
-    ),
-    CONSTRAINT check_adresse_utilisateur CHECK (
-        (adresse_utilisateur IS NULL AND EXISTS (
-            SELECT 1 FROM acteur a WHERE a.id_acteur = post.id_acteur AND a.type_acteur = 'admin'
-        )) OR
-        (adresse_utilisateur IS NOT NULL AND EXISTS (
-            SELECT 1 FROM utilisateur u WHERE u.id_acteur = post.id_acteur AND u.type_utilisateur IN ('donateur', 'beneficiaire')
-        )) OR
-        (adresse_utilisateur IS NULL AND EXISTS (
-            SELECT 1 FROM utilisateur u WHERE u.id_acteur = post.id_acteur AND u.type_utilisateur = 'association'
-        ))
-    )
-);
+-- Add id_don foreign key to post after don is created
+ALTER TABLE post
+ADD CONSTRAINT fk_don FOREIGN KEY (id_don) REFERENCES don(id_don);
 
--- Table de jointure: post_mot_cle (N:N entre Post et Mot_cle)
+-- Table: post_mot_cle
 CREATE TABLE post_mot_cle (
     id_post INT NOT NULL,
     id_mot_cle INT NOT NULL,
@@ -171,23 +173,7 @@ CREATE TABLE post_mot_cle (
     CONSTRAINT fk_mot_cle FOREIGN KEY (id_mot_cle) REFERENCES mot_cle(id_mot_cle)
 );
 
--- Table: Campagne
-CREATE TABLE campagne (
-    id_campagne INT PRIMARY KEY,
-    etat_campagne VARCHAR(50) NOT NULL CHECK (etat_campagne IN ('brouillon', 'publiee', 'enCours', 'objectif_atteint', 'annulee', 'cloturee')),
-    date_debut TIMESTAMP NOT NULL,
-    date_fin TIMESTAMP NOT NULL,
-    lieu_evenement GEOGRAPHY(POINT) NOT NULL,
-    type_campagne VARCHAR(50) NOT NULL CHECK (type_campagne IN ('evenement', 'volontariat', 'sensibilisation', 'collecte')),
-    montant_objectif FLOAT DEFAULT 0.0 CHECK (montant_objectif >= 0),
-    montant_recolte FLOAT DEFAULT 0.0 CHECK (montant_recolte >= 0),
-    nombre_participants INT DEFAULT 0,
-    id_association INT NOT NULL,
-    CONSTRAINT fk_post FOREIGN KEY (id_campagne) REFERENCES post(id_post),
-    CONSTRAINT fk_association FOREIGN KEY (id_association) REFERENCES association(id_acteur)
-);
-
--- Table: Zakat 
+-- Table: zakat
 CREATE TABLE zakat (
     id_zakat SERIAL PRIMARY KEY,
     montant FLOAT NOT NULL CHECK (montant >= 0),
@@ -203,18 +189,10 @@ CREATE TABLE zakat (
     CONSTRAINT check_zakat_target CHECK (
         (id_association IS NOT NULL AND id_beneficiaire IS NULL) OR
         (id_association IS NULL AND id_beneficiaire IS NOT NULL)
-    ),
-    CONSTRAINT check_zakat_don_type CHECK (
-        EXISTS (
-            SELECT 1
-            FROM don
-            WHERE don.id_don = zakat.id_don
-            AND don.type_don = 'financier'
-        )
     )
 );
 
--- Table: Notification
+-- Table: notification
 CREATE TABLE notification (
     id_notification SERIAL PRIMARY KEY,
     titre VARCHAR(255) NOT NULL,
@@ -226,7 +204,7 @@ CREATE TABLE notification (
     CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
 );
 
--- Table: Note
+-- Table: note
 CREATE TABLE note (
     id_note SERIAL PRIMARY KEY,
     note FLOAT NOT NULL CHECK (note >= 0 AND note <= 5),
@@ -248,7 +226,7 @@ CREATE TABLE note (
     )
 );
 
--- Table: Like
+-- Table: like
 CREATE TABLE "like" (
     id_like SERIAL PRIMARY KEY,
     date_like TIMESTAMP NOT NULL,
@@ -265,7 +243,7 @@ CREATE TABLE "like" (
     )
 );
 
--- Table: Commentaire
+-- Table: commentaire
 CREATE TABLE commentaire (
     id_commentaire SERIAL PRIMARY KEY,
     contenu TEXT NOT NULL,
@@ -282,7 +260,7 @@ CREATE TABLE commentaire (
     )
 );
 
--- Table: Avertissement
+-- Table: avertissement
 CREATE TABLE avertissement (
     id_avertissement SERIAL PRIMARY KEY,
     message TEXT NOT NULL,
@@ -293,7 +271,7 @@ CREATE TABLE avertissement (
     CONSTRAINT fk_utilisateur FOREIGN KEY (id_utilisateur) REFERENCES utilisateur(id_acteur)
 );
 
--- Table: Conversation_groupe (for group chats)
+-- Table: conversation_groupe
 CREATE TABLE conversation_groupe (
     id_conversation SERIAL PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
@@ -303,7 +281,7 @@ CREATE TABLE conversation_groupe (
     CONSTRAINT fk_createur FOREIGN KEY (id_createur) REFERENCES acteur(id_acteur)
 );
 
--- Table: Membre_conversation (members of group chats)
+-- Table: membre_conversation
 CREATE TABLE membre_conversation (
     id_conversation INT NOT NULL,
     id_acteur INT NOT NULL,
@@ -314,7 +292,7 @@ CREATE TABLE membre_conversation (
     CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
 );
 
--- Table: Message
+-- Table: message
 CREATE TABLE message (
     id_message SERIAL PRIMARY KEY,
     contenu TEXT NOT NULL,
@@ -330,24 +308,16 @@ CREATE TABLE message (
     )
 );
 
--- Table: Message_destinataire (for 1:1 message recipients)
+-- Table: message_destinataire
 CREATE TABLE message_destinataire (
     id_message INT NOT NULL,
     id_destinataire INT NOT NULL,
     PRIMARY KEY (id_message, id_destinataire),
     CONSTRAINT fk_message FOREIGN KEY (id_message) REFERENCES message(id_message),
-    CONSTRAINT fk_destinataire FOREIGN KEY (id_destinataire) REFERENCES acteur(id_acteur),
-    CONSTRAINT check_one_to_one CHECK (
-        EXISTS (
-            SELECT 1
-            FROM message m
-            WHERE m.id_message = message_destinataire.id_message
-            AND m.est_groupe = FALSE
-        )
-    )
+    CONSTRAINT fk_destinataire FOREIGN KEY (id_destinataire) REFERENCES acteur(id_acteur)
 );
 
--- Table: PieceJointe
+-- Table: piece_jointe
 CREATE TABLE piece_jointe (
     id_piece_jointe SERIAL PRIMARY KEY,
     url_fichier TEXT NOT NULL,
@@ -356,7 +326,7 @@ CREATE TABLE piece_jointe (
     CONSTRAINT fk_message FOREIGN KEY (id_message) REFERENCES message(id_message)
 );
 
--- Table de jointure: utilisateur_suivi (N:N entre Utilisateur et Utilisateur)
+-- Table: utilisateur_suivi
 CREATE TABLE utilisateur_suivi (
     id_suiveur INT NOT NULL,
     id_suivi INT NOT NULL,
@@ -365,7 +335,7 @@ CREATE TABLE utilisateur_suivi (
     CONSTRAINT fk_suivi FOREIGN KEY (id_suivi) REFERENCES utilisateur(id_acteur)
 );
 
--- Table de jointure: campagne_suivi (N:N entre Campagne et Utilisateur)
+-- Table: campagne_suivi
 CREATE TABLE campagne_suivi (
     id_campagne INT NOT NULL,
     id_utilisateur INT NOT NULL,
@@ -374,7 +344,7 @@ CREATE TABLE campagne_suivi (
     CONSTRAINT fk_utilisateur FOREIGN KEY (id_utilisateur) REFERENCES utilisateur(id_acteur)
 );
 
--- Table participants associated with campaigns
+-- Table: participants_campagne
 CREATE TABLE participants_campagne (
     id_utilisateur INT NOT NULL,
     id_campagne INT NOT NULL,
@@ -383,7 +353,7 @@ CREATE TABLE participants_campagne (
     CONSTRAINT fk_campagne FOREIGN KEY (id_campagne) REFERENCES campagne(id_campagne)
 );
 
--- Table de jointure: post_utilisateur_tag (N:N entre Post et Utilisateur)
+-- Table: post_utilisateur_tag
 CREATE TABLE post_utilisateur_tag (
     id_post INT NOT NULL,
     id_utilisateur INT NOT NULL,
@@ -392,7 +362,7 @@ CREATE TABLE post_utilisateur_tag (
     CONSTRAINT fk_utilisateur FOREIGN KEY (id_utilisateur) REFERENCES utilisateur(id_acteur)
 );
 
--- Table de jointure: don_association (N:N entre Don et Association)
+-- Table: don_association
 CREATE TABLE don_association (
     id_don INT NOT NULL,
     id_association INT NOT NULL,
@@ -400,6 +370,190 @@ CREATE TABLE don_association (
     CONSTRAINT fk_don FOREIGN KEY (id_don) REFERENCES don(id_don),
     CONSTRAINT fk_association FOREIGN KEY (id_association) REFERENCES association(id_acteur)
 );
+
+-- Table: parametre_zakat
+CREATE TABLE parametre_zakat (
+    id_parametre SERIAL PRIMARY KEY,
+    annee INT NOT NULL,
+    seuil_nisab FLOAT NOT NULL,
+    taux_zakat FLOAT NOT NULL DEFAULT 0.025,
+    devise VARCHAR(10) NOT NULL DEFAULT 'DZD',
+    date_mise_a_jour TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+
+-- Insert initial zakat parameters
+INSERT INTO parametre_zakat (annee, seuil_nisab, taux_zakat, devise) VALUES 
+    (2024, 750000.0, 0.025, 'DZD'),
+    (2024, 5000.0, 0.025, 'USD'),
+    (2024, 4600.0, 0.025, 'EUR');
+
+-- Table: bien_zakat
+CREATE TABLE bien_zakat (
+    id_bien_zakat SERIAL PRIMARY KEY,
+    id_donateur INT NOT NULL,
+    type_bien VARCHAR(50) NOT NULL CHECK (type_bien IN ('especes', 'or', 'argent', 'actions', 'marchandises', 'recoltes', 'betail', 'creances', 'autres')),
+    valeur FLOAT NOT NULL,
+    devise VARCHAR(10) NOT NULL DEFAULT 'DZD',
+    date_ajout TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_donateur FOREIGN KEY (id_donateur) REFERENCES donateur(id_acteur)
+);
+
+-- Table: rappel_evenement
+CREATE TABLE rappel_evenement (
+    id_rappel SERIAL PRIMARY KEY,
+    id_campagne INT NOT NULL,
+    date_rappel TIMESTAMP NOT NULL,
+    message TEXT NOT NULL,
+    envoye BOOLEAN DEFAULT FALSE,
+    CONSTRAINT fk_campagne FOREIGN KEY (id_campagne) REFERENCES campagne(id_campagne)
+);
+
+-- Table: critere_notation
+CREATE TABLE critere_notation (
+    id_critere SERIAL PRIMARY KEY,
+    nom VARCHAR(100) NOT NULL,
+    description TEXT,
+    poids FLOAT NOT NULL DEFAULT 1.0 CHECK (poids > 0)
+);
+
+-- Insert initial rating criteria
+INSERT INTO critere_notation (nom, description, poids) VALUES
+    ('Fiabilité', 'Fiabilité de l''utilisateur ou du service', 1.0),
+    ('Qualité', 'Qualité du service ou du produit fourni', 1.0),
+    ('Communication', 'Qualité de la communication', 0.8),
+    ('Ponctualité', 'Respect des délais', 0.7);
+
+-- Table: note_detaillee
+CREATE TABLE note_detaillee (
+    id_note_detaillee SERIAL PRIMARY KEY,
+    id_note INT NOT NULL,
+    id_critere INT NOT NULL,
+    valeur FLOAT NOT NULL CHECK (valeur >= 0 AND valeur <= 5),
+    CONSTRAINT fk_note FOREIGN KEY (id_note) REFERENCES note(id_note),
+    CONSTRAINT fk_critere FOREIGN KEY (id_critere) REFERENCES critere_notation(id_critere),
+    CONSTRAINT unique_note_critere UNIQUE (id_note, id_critere)
+);
+
+-- Table: statistique_plateforme
+CREATE TABLE statistique_plateforme (
+    id_statistique SERIAL PRIMARY KEY,
+    date_statistique DATE NOT NULL DEFAULT CURRENT_DATE,
+    nb_utilisateurs_actifs INT NOT NULL DEFAULT 0,
+    nb_posts_publies INT NOT NULL DEFAULT 0,
+    nb_dons_effectues INT NOT NULL DEFAULT 0,
+    montant_total_dons FLOAT NOT NULL DEFAULT 0,
+    nb_campagnes_actives INT NOT NULL DEFAULT 0
+);
+
+-- Table: historique_recherche
+CREATE TABLE historique_recherche (
+    id_historique_recherche SERIAL PRIMARY KEY,
+    terme_recherche TEXT NOT NULL,
+    date_recherche TIMESTAMP NOT NULL DEFAULT NOW(),
+    resultats_count INT,
+    id_acteur INT NOT NULL,
+    CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
+);
+
+-- Table: zone_geographique
+CREATE TABLE zone_geographique (
+    id_zone SERIAL PRIMARY KEY,
+    nom VARCHAR(100) NOT NULL,
+    description TEXT,
+    perimetre GEOGRAPHY(POLYGON),
+    id_acteur INT,
+    CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
+);
+
+-- Trigger to ensure message_destinataire only references one-to-one messages
+CREATE OR REPLACE FUNCTION check_message_destinataire_one_to_one()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM message m
+        WHERE m.id_message = NEW.id_message
+        AND m.est_groupe = FALSE
+    ) THEN
+        RAISE EXCEPTION 'message_destinataire can only reference one-to-one messages (est_groupe = FALSE)';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_check_message_destinataire_one_to_one
+BEFORE INSERT OR UPDATE ON message_destinataire
+FOR EACH ROW
+EXECUTE FUNCTION check_message_destinataire_one_to_one();
+
+-- Trigger to ensure post creator is admin or allowed user type
+CREATE OR REPLACE FUNCTION check_post_creator()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM acteur a
+        LEFT JOIN utilisateur u ON a.id_acteur = u.id_acteur
+        WHERE a.id_acteur = NEW.id_acteur
+        AND (a.type_acteur = 'admin' OR u.type_utilisateur IN ('donateur', 'beneficiaire'))
+    ) THEN
+        RAISE EXCEPTION 'Post creator must be an admin or a donateur/beneficiaire user';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_check_post_creator
+BEFORE INSERT OR UPDATE ON post
+FOR EACH ROW
+EXECUTE FUNCTION check_post_creator();
+
+-- Trigger to enforce post address rules
+CREATE OR REPLACE FUNCTION check_post_adresse_utilisateur()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (NEW.adresse_utilisateur IS NULL AND EXISTS (
+        SELECT 1 FROM acteur a WHERE a.id_acteur = NEW.id_acteur AND a.type_acteur = 'admin'
+    )) OR
+       (NEW.adresse_utilisateur IS NOT NULL AND EXISTS (
+        SELECT 1 FROM utilisateur u WHERE u.id_acteur = NEW.id_acteur AND u.type_utilisateur IN ('donateur', 'beneficiaire')
+    )) OR
+       (NEW.adresse_utilisateur IS NULL AND EXISTS (
+        SELECT 1 FROM utilisateur u WHERE u.id_acteur = NEW.id_acteur AND u.type_utilisateur = 'association'
+    )) THEN
+        RETURN NEW;
+    ELSE
+        RAISE EXCEPTION 'Invalid adresse_utilisateur for post creator type';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_check_post_adresse_utilisateur
+BEFORE INSERT OR UPDATE ON post
+FOR EACH ROW
+EXECUTE FUNCTION check_post_adresse_utilisateur();
+
+-- Trigger to ensure zakat donations are financial
+CREATE OR REPLACE FUNCTION check_zakat_don_type()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM don
+        WHERE don.id_don = NEW.id_don
+        AND don.type_don = 'financier'
+    ) THEN
+        RAISE EXCEPTION 'Zakat must reference a financial donation';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_check_zakat_don_type
+BEFORE INSERT OR UPDATE ON zakat
+FOR EACH ROW
+EXECUTE FUNCTION check_zakat_don_type();
 
 -- Trigger to ensure group creator is added as admin
 CREATE OR REPLACE FUNCTION add_creator_to_group()
@@ -416,61 +570,27 @@ AFTER INSERT ON conversation_groupe
 FOR EACH ROW
 EXECUTE FUNCTION add_creator_to_group();
 
--- Enhanced Features
--- 1. Recherche avancée
-CREATE INDEX idx_post_fulltext ON post USING GIN (to_tsvector('french', titre || ' ' || description));
-
-CREATE TABLE historique_recherche (
-    id_historique_recherche SERIAL PRIMARY KEY,
-    terme_recherche TEXT NOT NULL,
-    date_recherche TIMESTAMP NOT NULL DEFAULT NOW(),
-    resultats_count INT,
-    id_acteur INT NOT NULL,
-    CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
-);
-
--- 2. Géolocalisation
-CREATE OR REPLACE FUNCTION distance_entre_points(point1 GEOGRAPHY, point2 GEOGRAPHY) 
-RETURNS FLOAT AS $$
+-- Trigger to check post keywords on delete
+CREATE OR REPLACE FUNCTION check_post_mot_cle_on_delete()
+RETURNS TRIGGER AS $$
 BEGIN
-    RETURN ST_Distance(point1, point2);
+    IF NOT EXISTS (
+        SELECT 1
+        FROM post_mot_cle
+        WHERE post_mot_cle.id_post = OLD.id_post
+    ) THEN
+        RAISE EXCEPTION 'Un post doit conserver au moins un mot-clé';
+    END IF;
+    RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE zone_geographique (
-    id_zone SERIAL PRIMARY KEY,
-    nom VARCHAR(100) NOT NULL,
-    description TEXT,
-    perimetre GEOGRAPHY(POLYGON),
-    id_acteur INT,
-    CONSTRAINT fk_acteur FOREIGN KEY (id_acteur) REFERENCES acteur(id_acteur)
-);
+CREATE TRIGGER trigger_check_post_mot_cle_on_delete
+BEFORE DELETE ON post_mot_cle
+FOR EACH ROW
+EXECUTE FUNCTION check_post_mot_cle_on_delete();
 
--- 3. Calculateur de Zakat
-CREATE TABLE parametre_zakat (
-    id_parametre SERIAL PRIMARY KEY,
-    annee INT NOT NULL,
-    seuil_nisab FLOAT NOT NULL,
-    taux_zakat FLOAT NOT NULL DEFAULT 0.025,
-    devise VARCHAR(10) NOT NULL DEFAULT 'DZD',
-    date_mise_a_jour TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-INSERT INTO parametre_zakat (annee, seuil_nisab, taux_zakat, devise) VALUES 
-    (2024, 750000.0, 0.025, 'DZD'),
-    (2024, 5000.0, 0.025, 'USD'),
-    (2024, 4600.0, 0.025, 'EUR');
-
-CREATE TABLE bien_zakat (
-    id_bien_zakat SERIAL PRIMARY KEY,
-    id_donateur INT NOT NULL,
-    type_bien VARCHAR(50) NOT NULL CHECK (type_bien IN ('especes', 'or', 'argent', 'actions', 'marchandises', 'recoltes', 'betail', 'creances', 'autres')),
-    valeur FLOAT NOT NULL,
-    devise VARCHAR(10) NOT NULL DEFAULT 'DZD',
-    date_ajout TIMESTAMP NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_donateur FOREIGN KEY (id_donateur) REFERENCES donateur(id_acteur)
-);
-
+-- Function to calculate zakat
 CREATE OR REPLACE FUNCTION calculer_zakat(id_donateur_param INT)
 RETURNS FLOAT AS $$
 DECLARE
@@ -495,51 +615,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 4. Organisation d'événements
-CREATE TABLE rappel_evenement (
-    id_rappel SERIAL PRIMARY KEY,
-    id_campagne INT NOT NULL,
-    date_rappel TIMESTAMP NOT NULL,
-    message TEXT NOT NULL,
-    envoye BOOLEAN DEFAULT FALSE,
-    CONSTRAINT fk_campagne FOREIGN KEY (id_campagne) REFERENCES campagne(id_campagne)
-);
+-- Function to calculate distance between points
+CREATE OR REPLACE FUNCTION distance_entre_points(point1 GEOGRAPHY, point2 GEOGRAPHY) 
+RETURNS FLOAT AS $$
+BEGIN
+    RETURN ST_Distance(point1, point2);
+END;
+$$ LANGUAGE plpgsql;
 
--- 5. Système de notation détaillé
-CREATE TABLE critere_notation (
-    id_critere SERIAL PRIMARY KEY,
-    nom VARCHAR(100) NOT NULL,
-    description TEXT,
-    poids FLOAT NOT NULL DEFAULT 1.0 CHECK (poids > 0)
-);
-
-INSERT INTO critere_notation (nom, description, poids) VALUES
-    ('Fiabilité', 'Fiabilité de l''utilisateur ou du service', 1.0),
-    ('Qualité', 'Qualité du service ou du produit fourni', 1.0),
-    ('Communication', 'Qualité de la communication', 0.8),
-    ('Ponctualité', 'Respect des délais', 0.7);
-
-CREATE TABLE note_detaillee (
-    id_note_detaillee SERIAL PRIMARY KEY,
-    id_note INT NOT NULL,
-    id_critere INT NOT NULL,
-    valeur FLOAT NOT NULL CHECK (valeur >= 0 AND valeur <= 5),
-    CONSTRAINT fk_note FOREIGN KEY (id_note) REFERENCES note(id_note),
-    CONSTRAINT fk_critere FOREIGN KEY (id_critere) REFERENCES critere_notation(id_critere),
-    CONSTRAINT unique_note_critere UNIQUE (id_note, id_critere)
-);
-
--- 6. Statistiques de la plateforme
-CREATE TABLE statistique_plateforme (
-    id_statistique SERIAL PRIMARY KEY,
-    date_statistique DATE NOT NULL DEFAULT CURRENT_DATE,
-    nb_utilisateurs_actifs INT NOT NULL DEFAULT 0,
-    nb_posts_publies INT NOT NULL DEFAULT 0,
-    nb_dons_effectues INT NOT NULL DEFAULT 0,
-    montant_total_dons FLOAT NOT NULL DEFAULT 0,
-    nb_campagnes_actives INT NOT NULL DEFAULT 0
-);
-
+-- Function to update platform statistics
 CREATE OR REPLACE FUNCTION update_statistiques_quotidiennes()
 RETURNS VOID AS $$
 BEGIN
@@ -562,24 +646,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Index pour améliorer les performances
-CREATE INDEX idx_acteur_id_profile ON acteur(id_profile);
-CREATE INDEX idx_utilisateur_id_acteur ON utilisateur(id_acteur);
-CREATE INDEX idx_post_id_acteur ON post(id_acteur);
-CREATE INDEX idx_don_id_donateur ON don(id_donateur);
-CREATE INDEX idx_don_id_campagne ON don(id_campagne);
-CREATE INDEX idx_don_id_beneficiaire ON don(id_beneficiaire);
-CREATE INDEX idx_notification_id_acteur ON notification(id_acteur);
-CREATE INDEX idx_utilisateur_suivi_id_suiveur ON utilisateur_suivi(id_suiveur);
-CREATE INDEX idx_utilisateur_suivi_id_suivi ON utilisateur_suivi(id_suivi);
-CREATE INDEX idx_campagne_suivi_id_campagne ON campagne_suivi(id_campagne);
-CREATE INDEX idx_participants_campagne_id_utilisateur ON participants_campagne(id_utilisateur);
-CREATE INDEX idx_post_mot_cle_id_post ON post_mot_cle(id_post);
-CREATE INDEX idx_post_mot_cle_id_mot_cle ON post_mot_cle(id_mot_cle);
-CREATE INDEX idx_message_id_conversation ON message(id_conversation);
-CREATE INDEX idx_message_destinataire_id_message ON message_destinataire(id_message);
-
--- Triggers pour la mise à jour des notes moyennes
+-- Triggers for updating average ratings
 CREATE OR REPLACE FUNCTION update_acteur_note_moyenne()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -640,22 +707,20 @@ FOR EACH ROW
 WHEN (NEW.id_campagne IS NOT NULL)
 EXECUTE FUNCTION update_campagne_note_moyenne();
 
--- Trigger pour vérifier les mots-clés des posts
-CREATE OR REPLACE FUNCTION check_post_mot_cle_on_delete()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM post_mot_cle
-        WHERE post_mot_cle.id_post = OLD.id_post
-    ) THEN
-        RAISE EXCEPTION 'Un post doit conserver au moins un mot-clé';
-    END IF;
-    RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_check_post_mot_cle_on_delete
-BEFORE DELETE ON post_mot_cle
-FOR EACH ROW
-EXECUTE FUNCTION check_post_mot_cle_on_delete();
+-- Indexes for performance
+CREATE INDEX idx_acteur_id_profile ON acteur(id_profile);
+CREATE INDEX idx_utilisateur_id_acteur ON utilisateur(id_acteur);
+CREATE INDEX idx_post_id_acteur ON post(id_acteur);
+CREATE INDEX idx_don_id_donateur ON don(id_donateur);
+CREATE INDEX idx_don_id_campagne ON don(id_campagne);
+CREATE INDEX idx_don_id_beneficiaire ON don(id_beneficiaire);
+CREATE INDEX idx_notification_id_acteur ON notification(id_acteur);
+CREATE INDEX idx_utilisateur_suivi_id_suiveur ON utilisateur_suivi(id_suiveur);
+CREATE INDEX idx_utilisateur_suivi_id_suivi ON utilisateur_suivi(id_suivi);
+CREATE INDEX idx_campagne_suivi_id_campagne ON campagne_suivi(id_campagne);
+CREATE INDEX idx_participants_campagne_id_utilisateur ON participants_campagne(id_utilisateur);
+CREATE INDEX idx_post_mot_cle_id_post ON post_mot_cle(id_post);
+CREATE INDEX idx_post_mot_cle_id_mot_cle ON post_mot_cle(id_mot_cle);
+CREATE INDEX idx_message_id_conversation ON message(id_conversation);
+CREATE INDEX idx_message_destinataire_id_message ON message_destinataire(id_message);
+CREATE INDEX idx_post_fulltext ON post USING GIN (to_tsvector('french', titre || ' ' || description));

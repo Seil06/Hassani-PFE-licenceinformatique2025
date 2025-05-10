@@ -8,6 +8,7 @@ import 'package:myapp/models/notification.dart';
 import 'package:myapp/models/utils.dart';
 import 'package:myapp/models/utilisateur.dart';
 import 'package:myapp/models/post.dart';
+import 'package:myapp/models/zakat.dart';
 
 class Donateur extends Utilisateur {
   final String nom;
@@ -15,6 +16,7 @@ class Donateur extends Utilisateur {
   final List<Post> followedPosts;
   final List<Campagne> followedCampagnes;
   final List<Don> dons;
+  final List<Zakat> zakats;
 
   Donateur({
     super.id,
@@ -37,6 +39,8 @@ class Donateur extends Utilisateur {
     this.followedPosts = const [],
     this.followedCampagnes = const [],
     this.dons = const [],
+    this.zakats = const [],
+    required super.numCarteIdentite,
   }) : super(typeU: TypeUtilisateur.donateur) {
     if (nom.isEmpty) throw ArgumentError('Le nom ne peut pas être vide');
     if (prenom.isEmpty) throw ArgumentError('Le prénom ne peut pas être vide');
@@ -73,6 +77,8 @@ class Donateur extends Utilisateur {
       profile: Profile.fromMap(map['acteur'] != null ? map['acteur']['profile'] : map['profile']),
       dashboard: Dashboard.fromMap(map['dashboard'] ?? {}),
       dons: map['dons'] != null ? (map['dons'] as List).map((don) => Don.fromMap(don)).toList() : [],
+      zakats: [], // Load via separate query
+      numCarteIdentite: map['num_carte_identite'],
     );
   }
 
@@ -97,6 +103,7 @@ class Donateur extends Utilisateur {
     List<Post>? followedPosts,
     List<Campagne>? followedCampagnes,
     List<Don>? dons,
+    List<Zakat>? zakats,
   }) {
     return Donateur(
       id: id ?? this.id,
@@ -119,6 +126,8 @@ class Donateur extends Utilisateur {
       followedPosts: followedPosts ?? this.followedPosts,
       followedCampagnes: followedCampagnes ?? this.followedCampagnes,
       dons: dons ?? this.dons,
+      zakats: zakats ?? this.zakats,
+      numCarteIdentite: numCarteIdentite,
     );
   }
 }

@@ -1,5 +1,4 @@
 import 'package:myapp/models/acteur.dart';
-import 'package:myapp/models/dashboard.dart';
 
 enum TypeNotification {
   nouveau_post,
@@ -15,8 +14,7 @@ class Notification {
   final String contenu;
   final DateTime date;
   final TypeNotification typeNotification;
-  final Acteur idActeur;
-  final Dashboard idDashboard;
+  final Acteur acteur;
   final bool isRead;
 
   Notification({
@@ -25,8 +23,7 @@ class Notification {
     required this.contenu,
     required this.date,
     required this.typeNotification,
-    required this.idActeur,
-    required this.idDashboard,
+    required this.acteur,
     this.isRead = false,
   }) {
     if (titre.isEmpty) throw ArgumentError('Le titre ne peut pas être vide');
@@ -40,8 +37,7 @@ class Notification {
       'contenu': contenu,
       'date': date.toIso8601String(),
       'type_notification': typeNotification.name,
-      'id_acteur': idActeur.id,
-      'id_dashboard': idDashboard.idDashboard,
+      'id_acteur': acteur.id,
       'is_read': isRead,
     };
   }
@@ -53,15 +49,13 @@ class Notification {
       contenu: map['contenu'],
       date: DateTime.parse(map['date']),
       typeNotification: TypeNotification.values.byName(map['type_notification']),
-      idActeur: Acteur.fromMap(map['id_acteur']),
-      idDashboard: Dashboard.fromMap(map['id_dashboard']),
+      acteur: Acteur.fromMap(map['acteur']),
       isRead: map['is_read'] ?? false,
     );
   }
 
-
   @override
   String toString() {
-    return 'Notification(idNotification: $idNotification, titre: $titre, contenu: $contenu, date: $date, typeNotification: $typeNotification, idActeur: $idActeur, idDashboard: $idDashboard, isRead: $isRead)';
+    return 'Notification(idNotification: $idNotification, titre: $titre, contenu: $contenu, date: $date, typeNotification: $typeNotification, acteur: $acteur, isRead: $isRead)';
   }
 }

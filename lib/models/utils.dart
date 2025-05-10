@@ -7,4 +7,14 @@ class GeoUtils {
       'latitude': double.parse(coords[1]),
     };
   }
+
+  // Convert coordinates to PostGIS POINT format
+  static String toPostgisPoint(double longitude, double latitude) {
+    return 'POINT($longitude $latitude)';
+  }
+
+  // Convert coordinates to WKT format
+  static String toWkt(double longitude, double latitude) {
+    return 'POINT($longitude $latitude)';
+  }
 }

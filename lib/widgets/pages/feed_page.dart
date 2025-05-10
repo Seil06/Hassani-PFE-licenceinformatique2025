@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/models/acteur.dart';
+import 'package:myapp/models/commentaire.dart';
+import 'package:myapp/models/don.dart';
+import 'package:myapp/models/like.dart';
 import 'package:myapp/models/post.dart';
 import 'package:myapp/models/donateur.dart';
-import 'package:myapp/models/association.dart'; // For Campagne
+import 'package:myapp/models/association.dart';
 import 'package:myapp/services/SearchService.dart';
 import 'package:myapp/theme/app_pallete.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,9 +22,9 @@ class FeedPage extends StatefulWidget {
 class _FeedPageState extends State<FeedPage> {
   int _selectedIndex = 0;
   final SearchService _searchService = SearchService();
-  List<Campagne> _campagnes = []; // List to hold campaigns
-  List<Post> _posts = []; // List to hold posts
-  Mot_cles? _selectedCategory;
+  List<Campagne> _campagnes = [];
+  List<Post> _posts = [];
+  MotCles? _selectedCategory;
   bool _isLoading = false;
 
   @override
@@ -35,10 +38,9 @@ class _FeedPageState extends State<FeedPage> {
     final response = await supabase
         .from('don')
         .select(
-            'donateur(id_acteur, nom, prenom, utilisateur(email, telephone, adresse, location), acteur(id_profile, profile(photo_url, bio)))')
+            'donateur(id_acteur, nom, prenom, utilisateur(email, telephone, adresse_utilisateur), acteur(id_profile, profile(photo_url, bio)))')
         .eq('id_campagne', campagneId);
 
-    // Deduplicate by id_acteur
     final uniqueDonateurs = <int, Map>{};
     for (var map in response) {
       final idActeur = map['donateur']['id_acteur'] as int;
@@ -47,7 +49,9 @@ class _FeedPageState extends State<FeedPage> {
       }
     }
 
-    return uniqueDonateurs.values.map((map) => Donateur.fromMap(map.cast<String, dynamic>())).toList();
+    return uniqueDonateurs.values
+        .map((map) => Donateur.fromMap(map.cast<String, dynamic>()))
+        .toList();
   }
 
   Future<List<int>> fetchCampagneFollowers(int campagneId) async {
@@ -60,6 +64,36 @@ class _FeedPageState extends State<FeedPage> {
     return response.map<int>((map) => map['id_utilisateur'] as int).toList();
   }
 
+  Future<List<Like>> fetchCampagneLikes(int campagneId) async {
+    final supabase = Supabase.instance.client;
+    final response = await supabase
+        .from('like')
+        .select('id_like, date_like, id_utilisateur')
+        .eq('id_campagne', campagneId);
+
+    return response.map((map) => Like.fromMap({
+          ...map,
+          'utilisateur': {
+            'id_acteur': map['id_utilisateur'],
+          }
+        })).toList();
+  }
+
+  Future<List<Commentaire>> fetchCampagneComments(int campagneId) async {
+    final supabase = Supabase.instance.client;
+    final response = await supabase
+        .from('commentaire')
+        .select('id_commentaire, contenu, date, id_acteur')
+        .eq('id_campagne', campagneId);
+
+    return response.map((map) => Commentaire.fromMap({
+          ...map,
+          'acteur': {
+            'id_acteur': map['id_acteur'],
+          }
+        })).toList();
+  }
+
   Future<void> _fetchData() async {
     setState(() {
       _isLoading = true;
@@ -68,32 +102,93 @@ class _FeedPageState extends State<FeedPage> {
       final supabase = Supabase.instance.client;
       final campagneResponse = await supabase
           .from('post')
-          .select(
-              '*, campagne!fk_post(id_campagne, etat_campagne, date_debut, date_fin, lieu_evenement, type_campagne, montant_objectif, montant_recolte, nombre_participants), post_mot_cle!inner(id_mot_cle, mot_cle(nom)), acteur(email)')
+          .select('''
+              id_post, titre, description, type_post, image, date_limite, 
+              note_moyenne, id_acteur, id_don,
+              campagne!fk_post(
+                id_campagne, etat_campagne, date_debut, date_fin, 
+                lieu_evenement, type_campagne, montant_objectif, montant_recolte, 
+                nombre_participants, id_association
+              ),
+              post_mot_cle(id_mot_cle, mot_cle(nom))
+          ''')
           .eq('type_post', TypePost.campagne.name);
 
       _campagnes = campagneResponse.map<Campagne>((map) {
-        final campagne = Campagne.fromMap({
-          ...map,
-          ...map['campagne'],
-          'id_acteur': map['id_acteur'],
-          'titre': map['titre'],
-          'description': map['description'],
-          'type_don': map['type_don'],
-          'lieu_acteur': map['lieu_acteur'],
-          'image': map['image'],
-          'video': map['video'],
-          'date_limite': map['date_limite'],
-          'location': map['location'],
-        });
-        return campagne;
+        final campagneData = map['campagne'];
+        final motsCles = (map['post_mot_cle'] as List<dynamic>)
+            .map((mc) => MotCles.values.byName(mc['mot_cle']['nom']))
+            .toList();
+
+        // Map type_campagne to TypeDon
+        TypeDon typeDon;
+        switch (campagneData['type_campagne']) {
+          case 'collecte':
+            typeDon = TypeDon.materiel;
+            break;
+          case 'evenement':
+            typeDon = TypeDon.service;
+            break;
+          case 'volontariat':
+            typeDon = TypeDon.benevolat;
+            break;
+          case 'sensibilisation':
+            typeDon = TypeDon.autre;
+            break;
+          default:
+            typeDon = TypeDon.autre;
+        }
+
+        return Campagne(
+          idPost: map['id_post'],
+          titre: map['titre'],
+          description: map['description'],
+          typeDon: typeDon,
+          lieuActeur: campagneData['lieu_evenement'] != null
+              ? 'POINT(${campagneData['lieu_evenement']['coordinates'][0]} ${campagneData['lieu_evenement']['coordinates'][1]})'
+              : '',
+          typeCampagne: TypeCampagne.values.byName(campagneData['type_campagne']),
+          etatCampagne: EtatCampagne.values.byName(campagneData['etat_campagne']),
+          dateDebut: campagneData['date_debut'] != null
+              ? DateTime.parse(campagneData['date_debut'])
+              : null,
+          dateFin: campagneData['date_fin'] != null
+              ? DateTime.parse(campagneData['date_fin'])
+              : null,
+          lieuEvenement: campagneData['lieu_evenement'] != null
+              ? 'POINT(${campagneData['lieu_evenement']['coordinates'][0]} ${campagneData['lieu_evenement']['coordinates'][1]})'
+              : null,
+          montantObjectif: campagneData['montant_objectif']?.toDouble() ?? 0.0,
+          montantRecolte: campagneData['montant_recolte']?.toDouble() ?? 0.0,
+          nombreParticipants: campagneData['nombre_participants'] ?? 0,
+          image: map['image'],
+          dateLimite: map['date_limite'] != null
+              ? DateTime.parse(map['date_limite'])
+              : null,
+          latitude: campagneData['lieu_evenement'] != null
+              ? campagneData['lieu_evenement']['coordinates'][1]
+              : null,
+          longitude: campagneData['lieu_evenement'] != null
+              ? campagneData['lieu_evenement']['coordinates'][0]
+              : null,
+          idActeur: map['id_acteur'],
+          idAssociation: campagneData['id_association'],
+          motsCles: motsCles,
+        );
       }).toList();
 
-      // Load participants and followers for each campaign
+      // Load participants, followers, likes, and comments
       for (var i = 0; i < _campagnes.length; i++) {
         final participants = await fetchCampagneParticipants(_campagnes[i].idPost!);
         final followers = await fetchCampagneFollowers(_campagnes[i].idPost!);
-        _campagnes[i] = _campagnes[i].copyWith(participants: participants, followers: followers);
+        final likes = await fetchCampagneLikes(_campagnes[i].idPost!);
+        final comments = await fetchCampagneComments(_campagnes[i].idPost!);
+        _campagnes[i] = _campagnes[i].copyWith(
+          participants: participants,
+          followers: followers,
+          likes: likes,
+          commentaires: comments,
+        );
       }
 
       _posts = await _searchService.searchPosts(
@@ -144,7 +239,7 @@ class _FeedPageState extends State<FeedPage> {
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
-  
+
   Widget _buildProfileHeader() {
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -166,7 +261,7 @@ class _FeedPageState extends State<FeedPage> {
                     future: supabase
                         .from('acteur')
                         .select('profile(photo_url), type_acteur')
-                        .eq('id_acteur', supabase.auth.currentUser?.id ?? '')
+                        .eq('supabase_user_id', supabase.auth.currentUser?.id ?? '')
                         .single(),
                     builder: (context, snapshot) {
                       String? photoUrl;
@@ -198,9 +293,9 @@ class _FeedPageState extends State<FeedPage> {
                           prenom_admin,
                           nom_association,
                           email,
-                          (SELECT nom, prenom FROM donateur WHERE donateur.id_acteur = acteur.id_acteur LIMIT 1),
-                          (SELECT nom, prenom FROM beneficiaire WHERE beneficiaire.id_acteur = acteur.id_acteur LIMIT 1)
-                        ''').eq('id_acteur', supabase.auth.currentUser?.id ?? '').single(),
+                          donateur(nom, prenom),
+                          beneficiaire(nom, prenom)
+                        ''').eq('supabase_user_id', supabase.auth.currentUser?.id ?? '').single(),
                     builder: (context, snapshot) {
                       if (snapshot.hasData) {
                         final data = snapshot.data as Map;
@@ -210,14 +305,10 @@ class _FeedPageState extends State<FeedPage> {
                           displayName = '${data['prenom_admin']} ${data['nom_admin']}';
                         } else if (data['nom_association'] != null) {
                           displayName = data['nom_association'];
-                        } else if (data['donateur'] != null &&
-                            (data['donateur'] as Map).containsKey('nom')) {
-                          displayName =
-                              '${(data['donateur'] as Map)['prenom']} ${(data['donateur'] as Map)['nom']}';
-                        } else if (data['beneficiaire'] != null &&
-                            (data['beneficiaire'] as Map).containsKey('nom')) {
-                          displayName =
-                              '${(data['beneficiaire'] as Map)['prenom']} ${(data['beneficiaire'] as Map)['nom']}';
+                        } else if (data['donateur'] != null) {
+                          displayName = '${data['donateur']['prenom']} ${data['donateur']['nom']}';
+                        } else if (data['beneficiaire'] != null) {
+                          displayName = '${data['beneficiaire']['prenom']} ${data['beneficiaire']['nom']}';
                         } else {
                           displayName = data['email']?.split('@')[0] ?? 'Utilisateur';
                         }
@@ -267,8 +358,7 @@ class _FeedPageState extends State<FeedPage> {
                     BoxShadow(
                       color: Colors.black.withOpacity(0.1),
                       blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
+                      ),
                   ],
                 ),
                 child: IconButton(
@@ -277,7 +367,9 @@ class _FeedPageState extends State<FeedPage> {
                     color: LightAppPallete.accentDark,
                     size: 20,
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    // TODO: Navigate to NotificationsPage
+                  },
                 ),
               ),
             ],
@@ -290,7 +382,8 @@ class _FeedPageState extends State<FeedPage> {
   Widget _buildSearchBar() {
     return GestureDetector(
       onTap: () {
-        // Navigate to SearchPage (to be implemented)
+        // TODO: Navigate to SearchPage
+        // Navigator.pushNamed(context, '/search');
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -301,7 +394,6 @@ class _FeedPageState extends State<FeedPage> {
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
-              spreadRadius: 0,
             ),
           ],
         ),
@@ -321,10 +413,15 @@ class _FeedPageState extends State<FeedPage> {
 
   Widget _buildCampagnesSection() {
     if (_campagnes.isEmpty) {
-      return const Text('Aucune campagne en cours');
+      return const Center(
+        child: Text(
+          'Aucune campagne en cours',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
     }
     return SizedBox(
-      height: 220, // Increased height to accommodate participants
+      height: 240,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -337,7 +434,7 @@ class _FeedPageState extends State<FeedPage> {
   Widget _buildCampagneCard(Campagne campagne) {
     return GestureDetector(
       onTap: () {
-        // Navigate to CampagneDetailsPage (to be implemented)
+        // TODO: Navigate to CampagneDetailsPage
         // Navigator.pushNamed(context, '/campagne-details', arguments: campagne);
       },
       child: Container(
@@ -350,7 +447,6 @@ class _FeedPageState extends State<FeedPage> {
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
-              spreadRadius: 0,
             ),
           ],
         ),
@@ -387,7 +483,7 @@ class _FeedPageState extends State<FeedPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      campagne.typeDon.name,
+                      campagne.typeCampagne.name,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
@@ -413,35 +509,15 @@ class _FeedPageState extends State<FeedPage> {
                   ),
                   const SizedBox(height: 4),
                   FutureBuilder(
-                    future: supabase.from('acteur').select('''
-                          type_acteur,
-                          nom_admin,
-                          prenom_admin,
-                          nom_association,
-                          email,
-                          (SELECT nom, prenom FROM donateur WHERE donateur.id_acteur = acteur.id_acteur LIMIT 1),
-                          (SELECT nom, prenom FROM beneficiaire WHERE beneficiaire.id_acteur = acteur.id_acteur LIMIT 1)
-                        ''').eq('id_acteur', campagne.idActeur).single(),
+                    future: supabase
+                        .from('association')
+                        .select('nom_association')
+                        .eq('id_acteur', campagne.idAssociation)
+                        .single(),
                     builder: (context, snapshot) {
                       String orgName = 'Inconnu';
                       if (snapshot.hasData) {
-                        final data = snapshot.data as Map;
-                        final type = TypeActeur.values.byName(data['type_acteur']);
-                        if (type == TypeActeur.admin) {
-                          orgName = '${data['prenom_admin']} ${data['nom_admin']}';
-                        } else if (data['nom_association'] != null) {
-                          orgName = data['nom_association'];
-                        } else if (data['donateur'] != null &&
-                            (data['donateur'] as Map).containsKey('nom')) {
-                          orgName =
-                              '${(data['donateur'] as Map)['prenom']} ${(data['donateur'] as Map)['nom']}';
-                        } else if (data['beneficiaire'] != null &&
-                            (data['beneficiaire'] as Map).containsKey('nom')) {
-                          orgName =
-                              '${(data['beneficiaire'] as Map)['prenom']} ${(data['beneficiaire'] as Map)['nom']}';
-                        } else {
-                          orgName = data['email']?.split('@')[0] ?? 'Inconnu';
-                        }
+                        orgName = (snapshot.data as Map)['nom_association'] ?? 'Inconnu';
                       }
                       return Text(
                         orgName,
@@ -498,6 +574,19 @@ class _FeedPageState extends State<FeedPage> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(
+                    value: campagne.pourcentage / 100,
+                    backgroundColor: Colors.grey[300],
+                    valueColor: AlwaysStoppedAnimation<Color>(LightAppPallete.primary),
+                  ),
+                  Text(
+                    '${campagne.pourcentage.toStringAsFixed(1)}% atteint',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 10,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -521,7 +610,7 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Widget _buildCategoryChips() {
-    final categories = Mot_cles.values.map((motCle) {
+    final categories = MotCles.values.map((motCle) {
       return {
         'title': motCle.name[0].toUpperCase() + motCle.name.substring(1),
         'isSelected': _selectedCategory == motCle,
@@ -540,9 +629,9 @@ class _FeedPageState extends State<FeedPage> {
                 setState(() {
                   _selectedCategory = (category['isSelected'] as bool)
                       ? null
-                      : category['motCle'] as Mot_cles?;
+                      : category['motCle'] as MotCles?;
+                  _fetchData();
                 });
-                _fetchData();
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -555,7 +644,9 @@ class _FeedPageState extends State<FeedPage> {
                 child: Text(
                   category['title'] as String,
                   style: TextStyle(
-                    color: (category['isSelected'] as bool) ? Colors.white : Colors.grey[600],
+                    color: (category['isSelected'] as bool)
+                        ? Colors.white
+                        : Colors.grey[600],
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -593,7 +684,7 @@ class _FeedPageState extends State<FeedPage> {
   Widget _buildPostCard(Post post) {
     return GestureDetector(
       onTap: () {
-        // Navigate to PostDetailsPage (to be implemented)
+        // TODO: Navigate to PostDetailsPage
         // Navigator.pushNamed(context, '/post-details', arguments: post);
       },
       child: Container(
@@ -638,8 +729,8 @@ class _FeedPageState extends State<FeedPage> {
                           prenom_admin,
                           nom_association,
                           email,
-                          (SELECT nom, prenom FROM donateur WHERE donateur.id_acteur = acteur.id_acteur LIMIT 1),
-                          (SELECT nom, prenom FROM beneficiaire WHERE beneficiaire.id_acteur = acteur.id_acteur LIMIT 1)
+                          donateur(nom, prenom),
+                          beneficiaire(nom, prenom)
                         ''').eq('id_acteur', post.idActeur).single(),
                     builder: (context, snapshot) {
                       String creatorName = 'Inconnu';
@@ -650,14 +741,10 @@ class _FeedPageState extends State<FeedPage> {
                           creatorName = '${data['prenom_admin']} ${data['nom_admin']}';
                         } else if (data['nom_association'] != null) {
                           creatorName = data['nom_association'];
-                        } else if (data['donateur'] != null &&
-                            (data['donateur'] as Map).containsKey('nom')) {
-                          creatorName =
-                              '${(data['donateur'] as Map)['prenom']} ${(data['donateur'] as Map)['nom']}';
-                        } else if (data['beneficiaire'] != null &&
-                            (data['beneficiaire'] as Map).containsKey('nom')) {
-                          creatorName =
-                              '${(data['beneficiaire'] as Map)['prenom']} ${(data['beneficiaire'] as Map)['nom']}';
+                        } else if (data['donateur'] != null) {
+                          creatorName = '${data['donateur']['prenom']} ${data['donateur']['nom']}';
+                        } else if (data['beneficiaire'] != null) {
+                          creatorName = '${data['beneficiaire']['prenom']} ${data['beneficiaire']['nom']}';
                         } else {
                           creatorName = data['email']?.split('@')[0] ?? 'Inconnu';
                         }
@@ -756,21 +843,26 @@ class _FeedPageState extends State<FeedPage> {
           ),
         ),
         if (showViewAll)
-          Row(
-            children: [
-              Text(
-                'Voir tout',
-                style: TextStyle(
-                  color: LightAppPallete.accentDark,
-                  fontSize: 12,
+          GestureDetector(
+            onTap: () {
+              // TODO: Navigate to AllPostsPage or AllCampagnesPage
+            },
+            child: Row(
+              children: [
+                Text(
+                  'Voir tout',
+                  style: TextStyle(
+                    color: LightAppPallete.accentDark,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.arrow_forward,
-                color: LightAppPallete.accentDark,
-                size: 16,
-              ),
-            ],
+                Icon(
+                  Icons.arrow_forward,
+                  color: LightAppPallete.accentDark,
+                  size: 16,
+                ),
+              ],
+            ),
           ),
       ],
     );
@@ -788,7 +880,6 @@ class _FeedPageState extends State<FeedPage> {
           BoxShadow(
             color: Colors.black12,
             blurRadius: 10,
-            spreadRadius: 0,
           ),
         ],
       ),
@@ -802,6 +893,7 @@ class _FeedPageState extends State<FeedPage> {
           onTap: (index) {
             setState(() {
               _selectedIndex = index;
+              // TODO: Handle navigation
             });
           },
           type: BottomNavigationBarType.fixed,

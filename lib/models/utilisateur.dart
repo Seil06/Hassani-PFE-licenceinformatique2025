@@ -47,10 +47,10 @@ class Avertissement {
 class Utilisateur extends Acteur {
   final TypeUtilisateur typeU;
   final String? telephone;
-  final String? adresse;
+  final String adresse;
   double? latitude;
   double? longitude;
-  final List<Utilisateur> followers; // Utilisateurs qui suivent cet utilisateur
+  final List<Utilisateur> followers;
   final List<Avertissement> avertissements;
 
   Utilisateur({
@@ -58,10 +58,11 @@ class Utilisateur extends Acteur {
     required this.typeU,
     required super.email,
     required super.motDePasse,
+    required super.numCarteIdentite,
     required super.profile,
     required super.dashboard,
     this.telephone,
-    this.adresse,
+    required this.adresse,
     this.latitude,
     this.longitude,
     super.posts = const [],
@@ -74,6 +75,7 @@ class Utilisateur extends Acteur {
     if (telephone != null && !RegExp(r'^\+?[1-9]\d{1,14}$').hasMatch(telephone!)) {
       throw ArgumentError('Numéro de téléphone invalide');
     }
+    if (adresse.isEmpty) throw ArgumentError('L’adresse ne peut pas être vide');
   }
 
   @override
@@ -82,10 +84,10 @@ class Utilisateur extends Acteur {
       ...super.toMap(),
       'type_utilisateur': typeU.name,
       'telephone': telephone,
-      'adresse': adresse,
-      'location': latitude != null && longitude != null
+      'adresse_utilisateur': latitude != null && longitude != null
           ? 'POINT($longitude $latitude)'
           : null,
+      'adresse': adresse,
     };
   }
 
@@ -95,15 +97,16 @@ class Utilisateur extends Acteur {
       typeU: TypeUtilisateur.values.byName(map['type_utilisateur']),
       email: map['email'],
       motDePasse: map['mot_de_passe'],
+      numCarteIdentite: map['num_carte_identite'],
       profile: Profile.fromMap(map['profile']),
       dashboard: Dashboard.fromMap(map['dashboard']),
       telephone: map['telephone'],
-      adresse: map['adresse'],
-      latitude: map['location'] != null
-          ? GeoUtils.parsePoint(map['location'])['latitude']
+      adresse: map['adresse'] ?? '',
+      latitude: map['adresse_utilisateur'] != null
+          ? GeoUtils.parsePoint(map['adresse_utilisateur'])['latitude']
           : null,
-      longitude: map['location'] != null
-          ? GeoUtils.parsePoint(map['location'])['longitude']
+      longitude: map['adresse_utilisateur'] != null
+          ? GeoUtils.parsePoint(map['adresse_utilisateur'])['longitude']
           : null,
       followers: [], // Load via separate query
       avertissements: [], // Load via separate query
@@ -128,21 +131,19 @@ class Utilisateur extends Acteur {
         throw Exception('Permission de localisation refusée de manière permanente');
       }
 
-      // Define location settings
       const locationSettings = LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 100,
       );
 
-      // Use getCurrentPosition with updated API
       Position position = await Geolocator.getCurrentPosition();
       latitude = position.latitude;
       longitude = position.longitude;
 
       final supabase = Supabase.instance.client;
-      await supabase.from('Utilisateur').update({
-        'location': 'POINT(${position.longitude} ${position.latitude})',
-      }).eq('id_utilisateur', id!);
+      await supabase.from('utilisateur').update({
+        'adresse_utilisateur': 'POINT(${position.longitude} ${position.latitude})',
+      }).eq('id_acteur', id!);
     } catch (e) {
       throw Exception('Erreur lors de la mise à jour de la localisation: $e');
     }

@@ -24,7 +24,6 @@ class Dashboard {
   Map<String, dynamic> toMap() {
     return {
       'id_dashboard': idDashboard,
-      'id_historique': historique.idHistorique,
     };
   }
 
@@ -32,7 +31,7 @@ class Dashboard {
     return Dashboard(
       idDashboard: map['id_dashboard'],
       posts: [], // Load via separate query
-      historique: Historique.fromMap(map['historique']),
+      historique: Historique.fromMap(map['historique'] ?? {'date': DateTime.now().toIso8601String(), 'action': '', 'details': ''}),
       notifications: [], // Load via separate query
     );
   }
