@@ -26,18 +26,22 @@
 // │   └── routes.dart
 // ├── screens/                    // UI screens
 // │   ├── admin/                  // Admin-specific screens
-// │   │   └── admin_home.dart     // Admin home screen
+// │   │   ├── admin_home.dart     // Admin home screen
+// │   │   └── profile_admin.dart   // Admin profile screen
 // │   ├── auth/                   // Authentication screens
 // │   │   ├── AuthGateScreen.dart
 // │   │   ├── connexion.dart
 // │   │   └── inscription.dart
 // │   └── utilisateur/            // User-specific screens
 // │       ├── association/
-// │       │   └── association_home.dart // Association home screen
+// │       │   ├── association_home.dart // Association home screen
+// │       │   └── profile_association.dart // Association profile screen
 // │       ├── beneficiaire/
-// │       │   └── beneficiaire_home.dart // Beneficiary home screen
+// │       │   ├── beneficiaire_home.dart // Beneficiary home screen
+// │       │   └── profile_beneficiaire.dart // Beneficiary profile screen
 // │       └── donateur/
-// │           └── donateur_home.dart // Donor home screen
+// │           ├── donateur_home.dart // Donor home screen
+// │           └── profile_donateur.dart // Donor profile screen
 // ├── services/                   // Business logic and services
 // │   ├── geo_utils.dart          // Geolocation utilities
 // │   ├── notification_service.dart
@@ -56,5 +60,6 @@
 //         ├── feed_page.dart      // Feed page for posts and campaigns
 //         ├── campagne_page.dart  // Campaign details page
 //         ├── post_page.dart      // Post details page
-//         └── home_base.dart      // Base page for the home screen
+//         ├── research_page.dart // Search page for posts and campaigns and users 
+//         └── settings_page.dart  // Settings page
 
