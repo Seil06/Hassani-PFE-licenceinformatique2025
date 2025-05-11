@@ -78,6 +78,8 @@ class Utilisateur extends Acteur {
     if (adresse.isEmpty) throw ArgumentError('L’adresse ne peut pas être vide');
   }
 
+   int get idActeur => id ?? (throw Exception('idActeur cannot be null')); // Use 'id' inherited from the Acteur class
+
   @override
   Map<String, dynamic> toMap() {
     return {

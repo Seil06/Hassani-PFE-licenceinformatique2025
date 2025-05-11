@@ -3,16 +3,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:myapp/models/acteur.dart';
 import 'package:myapp/models/commentaire.dart';
-import 'package:myapp/models/don.dart';
 import 'package:myapp/models/like.dart';
 import 'package:myapp/models/post.dart';
 import 'package:myapp/models/donateur.dart';
 import 'package:myapp/models/association.dart';
-import 'package:myapp/models/utils.dart'; // Import for GeoUtils
+import 'package:myapp/services/PostService.dart'; // Import PostService
+import 'package:myapp/services/CampagneService.dart'; // Import CampagneService
 import 'package:myapp/services/SearchService.dart';
 import 'package:myapp/theme/app_pallete.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:myapp/main.dart';
+import 'package:flutter/services.dart';
+import 'package:myapp/widgets/cards/campagne_card.dart';
 
 class FeedPage extends StatefulWidget {
   final String userType;
@@ -23,7 +25,6 @@ class FeedPage extends StatefulWidget {
 
 class _FeedPageState extends State<FeedPage> {
   int _selectedIndex = 0;
-  final SearchService _searchService = SearchService();
   List<Campagne> _campagnes = [];
   List<Post> _posts = [];
   MotCles? _selectedCategory;
@@ -33,6 +34,7 @@ class _FeedPageState extends State<FeedPage> {
   void initState() {
     super.initState();
     _requestLocationPermission();
+    _selectedCategory = null; // Force no filtering initially for testing
     _fetchData();
   }
 
@@ -55,25 +57,88 @@ class _FeedPageState extends State<FeedPage> {
     }
   }
 
+  Future<int?> _getCurrentDonorId() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return null;
+
+      final response = await Supabase.instance.client
+          .from('acteur')
+          .select('''
+          id_acteur,
+          utilisateur!inner(type_utilisateur)
+        ''')
+          .eq('supabase_user_id', user.id)
+          .eq('utilisateur.type_utilisateur', 'donateur')
+          .single();
+
+      return response['id_acteur'] as int?;
+    } catch (e) {
+      print('Error getting donor ID: $e');
+      return null;
+    }
+  }
+
   Future<List<Donateur>> fetchCampagneParticipants(int campagneId) async {
     final supabase = Supabase.instance.client;
-    final response = await supabase
-        .from('don')
-        .select(
-            'donateur(id_acteur, nom, prenom, utilisateur(email, telephone, adresse_utilisateur), acteur(id_profile, profile(photo_url, bio)))')
-        .eq('id_campagne', campagneId);
+    final uniqueDonateurs = <int, Donateur>{};
 
-    final uniqueDonateurs = <int, Map>{};
-    for (var map in response) {
-      final idActeur = int.tryParse(map['donateur']['id_acteur'].toString()) ?? 0;
-      if (!uniqueDonateurs.containsKey(idActeur)) {
-        uniqueDonateurs[idActeur] = map['donateur'];
+    try {
+      final response = await supabase
+          .from('don')
+          .select('''
+              donateur!id_donateur(
+                id_acteur, nom, prenom, 
+                utilisateur!id_acteur(id_profile, email, telephone, adresse_utilisateur)
+              )
+          ''')
+          .eq('id_campagne', campagneId);
+
+      for (var map in response) {
+        final donateurData = map['donateur'] as Map<String, dynamic>?;
+        if (donateurData == null) continue;
+
+        final idActeur = int.tryParse(donateurData['id_acteur'].toString()) ?? 0;
+        if (uniqueDonateurs.containsKey(idActeur)) continue;
+
+        final utilisateurData = donateurData['utilisateur'] as Map<String, dynamic>? ?? {};
+        final idProfile = utilisateurData['id_profile'];
+
+        Map<String, dynamic> profileData = {};
+        if (idProfile != null) {
+          final profileResponse = await supabase
+              .from('profile')
+              .select('photo_url, bio')
+              .eq('id_profile', idProfile)
+              .maybeSingle();
+
+          if (profileResponse != null) {
+            profileData = profileResponse;
+          }
+        }
+
+        final donateurMap = {
+          'id_acteur': idActeur,
+          'nom': donateurData['nom'],
+          'prenom': donateurData['prenom'],
+          'email': utilisateurData['email'],
+          'telephone': utilisateurData['telephone'],
+          'adresse_utilisateur': utilisateurData['adresse_utilisateur'],
+          'profile': {
+            'id_profile': idProfile,
+            'photo_url': profileData['photo_url'],
+            'bio': profileData['bio'],
+          },
+        };
+
+        uniqueDonateurs[idActeur] = Donateur.fromMap(donateurMap.cast<String, dynamic>());
       }
-    }
 
-    return uniqueDonateurs.values
-        .map((map) => Donateur.fromMap(map.cast<String, dynamic>()))
-        .toList();
+      return uniqueDonateurs.values.toList();
+    } catch (e) {
+      print('Error in fetchCampagneParticipants: $e');
+      return [];
+    }
   }
 
   Future<List<int>> fetchCampagneFollowers(int campagneId) async {
@@ -122,131 +187,48 @@ class _FeedPageState extends State<FeedPage> {
     });
     try {
       final supabase = Supabase.instance.client;
-      // Fetch campaigns directly from the campagne table
-      final campagneResponse = await supabase
-          .from('campagne')
-          .select('''
-              id_campagne, etat_campagne, date_debut, date_fin, 
-              lieu_evenement, type_campagne, montant_objectif, montant_recolte, 
-              nombre_participants, id_association,
-              association(nom_association),
-              post!id_campagne(
-                id_post, titre, description, type_post, image, date_limite, 
-                note_moyenne, id_acteur, id_don
-              ),
-              post_mot_cle!left(id_post, id_mot_cle, mot_cle(nom))
-          ''');
+      final postService = PostService(supabase);
+      final campagneService = CampagneService(supabase);
 
-      print('Raw campagneResponse: $campagneResponse'); // Debug log
-      _campagnes = campagneResponse.map<Campagne>((data) {
-        print('Raw data: $data'); // Debug log
+      // Fetch campaigns using CampagneService
+      _campagnes = await campagneService.getAllCampagnes();
 
-        // Extract post data and merge with campaign data
-        final postData = data['post'] as Map<String, dynamic>? ?? {};
-        final mergedData = {
-          ...data,
-          ...postData,
-          'id_post': data['id_campagne'],
-        };
-        print('Merged data: $mergedData'); // Debug log
-
-        final motsCles = (data['post_mot_cle'] as List<dynamic>? ?? [])
-            .map((mc) => MotCles.values.byName((mc['mot_cle']['nom'] as String?) ?? 'autre'))
-            .toList();
-
-        // Map type_campagne to TypeDon
-        TypeDon typeDon;
-        switch (data['type_campagne']?.toString()) {
-          case 'collecte':
-            typeDon = TypeDon.materiel;
-            break;
-          case 'evenement':
-            typeDon = TypeDon.service;
-            break;
-          case 'volontariat':
-            typeDon = TypeDon.benevolat;
-            break;
-          case 'sensibilisation':
-            typeDon = TypeDon.autre;
-            break;
-          default:
-            typeDon = TypeDon.autre;
-        }
-
-        // Parse lieu_evenement (GEOGRAPHY field)
-        double? latitude;
-        double? longitude;
-        String? lieuEvenement;
-        if (data['lieu_evenement'] != null) {
-          final lieuRaw = data['lieu_evenement'].toString();
-          print('Raw lieu_evenement: $lieuRaw'); // Debug log
-          if (lieuRaw.startsWith('POINT(')) {
-            final coords = GeoUtils.parsePoint(lieuRaw);
-            latitude = coords['latitude'];
-            longitude = coords['longitude'];
-            lieuEvenement = lieuRaw;
-          } else if (lieuRaw.isNotEmpty) {
-            print('Unexpected lieu_evenement format: $lieuRaw');
-          }
-        }
-
-        return Campagne(
-          idPost: int.tryParse(mergedData['id_campagne'].toString()) ?? 0,
-          titre: mergedData['titre']?.toString() ?? 'Titre inconnu',
-          description: mergedData['description']?.toString() ?? '',
-          typeDon: typeDon,
-          lieuActeur: mergedData['lieu_acteur']?.toString() ?? '',
-          typeCampagne: mergedData['type_campagne'] != null
-              ? TypeCampagne.values.byName(mergedData['type_campagne'].toString())
-              : TypeCampagne.collecte,
-          etatCampagne: mergedData['etat_campagne'] != null
-              ? EtatCampagne.values.byName(mergedData['etat_campagne'].toString())
-              : EtatCampagne.brouillon,
-          dateDebut: mergedData['date_debut'] != null
-              ? DateTime.tryParse(mergedData['date_debut'].toString())
-              : null,
-          dateFin: mergedData['date_fin'] != null
-              ? DateTime.tryParse(mergedData['date_fin'].toString())
-              : null,
-          lieuEvenement: lieuEvenement,
-          montantObjectif: double.tryParse(mergedData['montant_objectif']?.toString() ?? '0') ?? 0.0,
-          montantRecolte: double.tryParse(mergedData['montant_recolte']?.toString() ?? '0') ?? 0.0,
-          nombreParticipants: int.tryParse(mergedData['nombre_participants']?.toString() ?? '0') ?? 0,
-          image: mergedData['image']?.toString(),
-          dateLimite: mergedData['date_limite'] != null
-              ? DateTime.tryParse(mergedData['date_limite'].toString())
-              : null,
-          latitude: latitude,
-          longitude: longitude,
-          idActeur: int.tryParse(mergedData['id_acteur']?.toString() ?? '0') ?? 0,
-          idAssociation: int.tryParse(mergedData['id_association']?.toString() ?? '0') ?? 0,
-          motsCles: motsCles,
-        );
-      }).toList();
-
-      // Load participants, followers, likes, and comments
+      // Fetch additional data for each campaign
       for (var i = 0; i < _campagnes.length; i++) {
-        try {
-          final participants = await fetchCampagneParticipants(_campagnes[i].idPost ?? 0);
-          final followers = await fetchCampagneFollowers(_campagnes[i].idPost ?? 0);
-          final likes = await fetchCampagneLikes(_campagnes[i].idPost ?? 0);
-          final comments = await fetchCampagneComments(_campagnes[i].idPost ?? 0);
-          _campagnes[i] = _campagnes[i].copyWith(
-            participants: participants,
-            followers: followers,
-            likes: likes,
-            commentaires: comments,
-          );
-        } catch (e) {
-          print('Error loading details for campagne ${_campagnes[i].idPost}: $e');
-        }
+        final participants = await fetchCampagneParticipants(_campagnes[i].idPost ?? 0);
+        final followers = await fetchCampagneFollowers(_campagnes[i].idPost ?? 0);
+        final likes = await fetchCampagneLikes(_campagnes[i].idPost ?? 0);
+        final comments = await fetchCampagneComments(_campagnes[i].idPost ?? 0);
+        _campagnes[i] = _campagnes[i].copyWith(
+          participants: participants,
+          followers: followers,
+          likes: likes,
+          commentaires: comments,
+        );
       }
 
-      // Fetch posts
-      _posts = await _searchService.searchPosts(
-        query: '',
-        motCle: _selectedCategory,
-      );
+      // Fetch posts using PostService
+      final allPosts = await postService.getAllPosts();
+
+      // Filter posts based on selected category
+      _posts = allPosts.where((post) {
+        
+        print('Post ${post.idPost} motsCles: ${post.motsCles}'); // Debug log
+        print('Selected category: $_selectedCategory'); // Debug log
+
+     // Exclude campaign-type posts
+    if (post.typePost == TypePost.campagne) return false;
+  
+    // Existing category filter
+   if (_selectedCategory == null) return true;
+   final matchesCategory = post.motsCles.contains(_selectedCategory);
+   if (!allPosts.any((p) => p.motsCles.contains(_selectedCategory))) {
+    return true;
+   }
+        return matchesCategory;
+      }).toList();
+
+      print('Final posts: $_posts'); // Debug log
     } catch (e) {
       print('Error in _fetchData: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -257,6 +239,207 @@ class _FeedPageState extends State<FeedPage> {
         _isLoading = false;
       });
     }
+  }
+  Future<void> _submitDonation(
+    Campagne campagne,
+    String amount,
+    String cardNumber,
+    String expiry,
+    String cvv,
+  ) async {
+    final donorId = await _getCurrentDonorId();
+    if (donorId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aucun donateur trouvé')),
+      );
+      return;
+    }
+
+    try {
+      await Supabase.instance.client.from('don').insert({
+        'num_carte_bancaire': cardNumber,
+        'montant': int.parse(amount),
+        'date_don': DateTime.now().toIso8601String(),
+        'type_don': 'financier', // Fixed to 'financier'
+        'etat_don': 'enAttente',
+        'id_donateur': donorId,
+        'id_campagne': campagne.idPost,
+        'date_expiration': expiry,
+        'cvv': cvv,
+      });
+
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Donation réussie!')),
+      );
+      await _fetchData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: ${e.toString()}')),
+      );
+    }
+  }
+
+  void _showDonationDialog(Campagne campagne) {
+    final amountController = TextEditingController(text: '0');
+    final cardController = TextEditingController();
+    final expiryController = TextEditingController();
+    final cvvController = TextEditingController();
+    int amount = 0;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Column(
+          children: [
+            FutureBuilder(
+              future: supabase
+                  .from('association')
+                  .select('nom_association')
+                  .eq('id_acteur', campagne.idAssociation)
+                  .single(),
+              builder: (context, snapshot) {
+                return Text(
+                  'Donation to ${snapshot.hasData ? (snapshot.data as Map)['nom_association'] ?? 'Unknown' : '...'}',
+                  style: const TextStyle(fontWeight: FontWeight.bold,fontSize: 20, color: LightAppPallete.primaryDark),
+                  textAlign: TextAlign.center
+                );
+              },
+            ),
+            Text(
+              campagne.titre,
+              style: const TextStyle(fontSize: 10, color: LightAppPallete.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset('assets/images/transactions.png', height: 100),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove),
+                    onPressed: () {
+                      amount = amount > 0 ? amount - 100 : 0;
+                      amountController.text = amount.toString();
+                    },
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Montant (DZD)',
+                        prefixIcon: Icon(Icons.attach_money_outlined),
+                      ),
+                      onChanged: (value) {
+                        amount = int.tryParse(value) ?? 0;
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      amount += 100;
+                      amountController.text = amount.toString();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16), // Equal spacing
+              TextField(
+                controller: cardController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Numéro de carte (16 chiffres)',
+                  prefixIcon: Icon(Icons.credit_card),
+                ),
+                maxLength: 16,
+              ),
+              const SizedBox(height: 16), // Equal spacing
+              TextField(
+                controller: expiryController,
+                decoration: const InputDecoration(
+                  labelText: 'MM/AA',
+                  hintText: '12/25',
+                  prefixIcon: Icon(Icons.calendar_today),
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(5),
+                  _CardExpiryFormatter(), // Custom formatter for MM/AA
+                ],
+              ),
+              const SizedBox(height: 16), // Equal spacing
+              TextField(
+                controller: cvvController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'CVV',
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                maxLength: 3,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // Enhanced validation
+              final expiryRegExp = RegExp(r'^(0[1-9]|1[0-2])\/?([0-9]{2})$');
+              final cvvRegExp = RegExp(r'^[0-9]{3,4}$');
+
+              if (cardController.text.length != 16) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Numéro de carte invalide')),
+                );
+                return;
+              }
+
+              if (!expiryRegExp.hasMatch(expiryController.text)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Format expiration invalide (MM/AA)')),
+                );
+                return;
+              }
+
+              if (!cvvRegExp.hasMatch(cvvController.text)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('CVV invalide (3-4 chiffres)')),
+                );
+                return;
+              }
+
+              if (amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Montant invalide')),
+                );
+                return;
+              }
+
+              // Submit donation logic
+              await _submitDonation(
+                campagne,
+                amount.toString(),
+                cardController.text,
+                expiryController.text,
+                cvvController.text,
+              );
+            },
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -297,7 +480,7 @@ class _FeedPageState extends State<FeedPage> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: LightAppPallete.primary,
+        color: LightAppPallete.accentDark,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
@@ -319,7 +502,10 @@ class _FeedPageState extends State<FeedPage> {
                     builder: (context, snapshot) {
                       String? photoUrl;
                       if (snapshot.hasData) {
-                        photoUrl = (snapshot.data as Map)['profile']['photo_url'];
+                        final profileData = (snapshot.data as Map)['profile'];
+                        photoUrl = profileData?['photo_url'] != null 
+                            ? 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile/${profileData['photo_url']}'
+                            : null;
                       }
                       return Container(
                         width: 48,
@@ -330,8 +516,7 @@ class _FeedPageState extends State<FeedPage> {
                           image: DecorationImage(
                             image: photoUrl != null
                                 ? NetworkImage(photoUrl)
-                                : const AssetImage('assets/images/profile.jpg')
-                                    as ImageProvider,
+                                : const AssetImage('assets/images/profile.jpg') as ImageProvider,
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -478,202 +663,12 @@ class _FeedPageState extends State<FeedPage> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: _campagnes.map((campagne) => _buildCampagneCard(campagne)).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCampagneCard(Campagne campagne) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          '/campagne-details',
-          arguments: {'campagne': campagne},
-        );
-      },
-      child: Container(
-        width: 250,
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 253, 221, 232),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                  child: CachedNetworkImage(
-                    imageUrl: campagne.image ?? 'https://via.placeholder.com/250x120',
-                    height: 120,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-                    errorWidget: (context, url, error) => Image.asset(
-                      'assets/images/placeholder.jpg',
-                      height: 120,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      campagne.typeCampagne.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    campagne.titre,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  FutureBuilder(
-                    future: supabase
-                        .from('association')
-                        .select('nom_association')
-                        .eq('id_acteur', campagne.idAssociation)
-                        .single(),
-                    builder: (context, snapshot) {
-                      String orgName = 'Inconnu';
-                      if (snapshot.hasData) {
-                        orgName = (snapshot.data as Map)['nom_association'] ?? 'Inconnu';
-                      }
-                      return Text(
-                        orgName,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.favorite, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${campagne.likes.length}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Icon(Icons.comment, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${campagne.commentaires.length}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.group, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${campagne.participants.length} participants',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  LinearProgressIndicator(
-                    value: campagne.pourcentage / 100,
-                    backgroundColor: Colors.grey[300],
-                    valueColor: AlwaysStoppedAnimation<Color>(LightAppPallete.primary),
-                  ),
-                  Text(
-                    '${campagne.pourcentage.toStringAsFixed(1)}% atteint',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 10,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: () async {
-                      try {
-                        await Supabase.instance.client.from('don').insert({
-                          'num_carte_bancaire': '1234567890123456',
-                          'montant': 5000.0,
-                          'date_don': DateTime.now().toIso8601String(),
-                          'type_don': 'financier',
-                          'etat_don': 'enAttente',
-                          'id_donateur': 4, // Replace with actual user ID
-                          'id_campagne': campagne.idPost,
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Donation successful')),
-                        );
-                        // Refresh the campaign data to update participant count
-                        await _fetchData();
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Donation failed: $e')),
-                        );
-                      }
-                    },
-                    child: const Text('Faire un don'),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          children: _campagnes.map((campagne) {
+            return CampagneCard(
+              campagne: campagne,
+              onDonate: () => _showDonationDialog(campagne),
+            );
+          }).toList(),
         ),
       ),
     );
@@ -801,10 +796,7 @@ class _FeedPageState extends State<FeedPage> {
                 children: [
                   Text(
                     post.titre,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -840,10 +832,7 @@ class _FeedPageState extends State<FeedPage> {
                         children: [
                           Text(
                             creatorName,
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
                           ),
                           const SizedBox(width: 4),
                           Container(
@@ -872,10 +861,7 @@ class _FeedPageState extends State<FeedPage> {
                           const SizedBox(width: 4),
                           Text(
                             '${post.likes.length}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
                           ),
                         ],
                       ),
@@ -885,10 +871,7 @@ class _FeedPageState extends State<FeedPage> {
                           const SizedBox(width: 4),
                           Text(
                             '${post.commentaires.length}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
                           ),
                         ],
                       ),
@@ -900,10 +883,7 @@ class _FeedPageState extends State<FeedPage> {
                             post.dateLimite != null
                                 ? '${post.dateLimite!.difference(DateTime.now()).inDays} jours restants'
                                 : 'Pas de limite',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
                           ),
                         ],
                       ),
@@ -924,10 +904,7 @@ class _FeedPageState extends State<FeedPage> {
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         if (showViewAll)
           GestureDetector(
@@ -938,10 +915,7 @@ class _FeedPageState extends State<FeedPage> {
               children: [
                 Text(
                   'Voir tout',
-                  style: TextStyle(
-                    color: LightAppPallete.accentDark,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: LightAppPallete.accentDark, fontSize: 12),
                 ),
                 Icon(
                   Icons.arrow_forward,
@@ -1009,6 +983,26 @@ class _FeedPageState extends State<FeedPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+extension ListExtensions<T> on List<T> {
+  List<T> ifEmpty(List<T> Function() defaultList) => isEmpty ? defaultList() : this;
+}
+
+class _CardExpiryFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final buffer = StringBuffer();
+    for (int i = 0; i < text.length; i++) {
+      if (i == 2) buffer.write('/');
+      buffer.write(text[i]);
+    }
+    return TextEditingValue(
+      text: buffer.toString(),
+      selection: TextSelection.collapsed(offset: buffer.length),
     );
   }
 }

@@ -110,4 +110,47 @@ class Post {
     final average = notes.map((note) => note.note).reduce((a, b) => a + b) / notes.length;
     noteMoyenne = double.parse(average.toStringAsFixed(2));
   }
+
+  Post copyWith({
+  int? idPost,
+  String? titre,
+  String? description,
+  TypePost? typePost,
+  TypeDon? typeDon,
+  String? image,
+  String? lieuActeur,
+  DateTime? dateLimite,
+  double? latitude,
+  double? longitude,
+  List<Note>? notes,
+  List<Like>? likes,
+  List<Commentaire>? commentaires,
+  List<Utilisateur>? utilisateursTaguer,
+  List<MotCles>? motsCles,
+  int? idActeur,
+  Don? don,
+}) {
+  return Post(
+    idPost: idPost ?? this.idPost,
+    titre: titre ?? this.titre,
+    description: description ?? this.description,
+    typePost: typePost ?? this.typePost,
+    typeDon: typeDon ?? this.typeDon,
+    image: image ?? this.image,
+    lieuActeur: lieuActeur ?? this.lieuActeur,
+    dateLimite: dateLimite ?? this.dateLimite,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    notes: notes ?? this.notes,
+    likes: likes ?? this.likes,
+    commentaires: commentaires ?? this.commentaires,
+    utilisateursTaguer: utilisateursTaguer ?? this.utilisateursTaguer,
+    motsCles: motsCles ?? this.motsCles,
+    idActeur: idActeur ?? this.idActeur,
+    don: don ?? this.don,
+  ).._noteMoyenne = this._noteMoyenne;
+}
+
+ bool get isCampagne => typePost == TypePost.campagne;
+
 }

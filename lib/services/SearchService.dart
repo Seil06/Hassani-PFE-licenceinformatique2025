@@ -17,20 +17,20 @@ enum MotCles {
   yennayer,
   hiver,
   animaux,
-  boisement,
-  recyclage,
   sante,
   medicament,
   marriage,
   mosquee,
   vetement,
+  boisement,
+  recyclage,
+  autre,
   vetementHivers,
   inondations,
   tremblementDeTerre,
   refuges,
   femmes,
   reservoirsOxygene,
-  autre,
 }
 
 class SearchService {
@@ -96,7 +96,7 @@ class SearchService {
 
         final motsClesData = await motsClesQuery;
         List<MotCles> motsCles = motsClesData
-            .map<MotCles>((item) => MotCles.values.byName(item['mot_cle']['nom'] ?? 'autre'))
+            .map<MotCles>((item) => MotCles.values.firstWhere((e) => e.toString().split('.').last == item['mot_cle']['nom']))
             .toList();
 
         // Apply motCle filter if provided

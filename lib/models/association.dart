@@ -209,12 +209,14 @@ factory Campagne.fromMap(Map<String, dynamic> map) {
   );
 }
 
+  @override
   Campagne copyWith({
     int? idPost,
     String? titre,
     String? description,
     TypeDon? typeDon,
     String? lieuActeur,
+    TypePost? typePost,
     TypeCampagne? typeCampagne,
     EtatCampagne? etatCampagne,
     DateTime? dateDebut,
@@ -236,6 +238,7 @@ factory Campagne.fromMap(Map<String, dynamic> map) {
     int? idAssociation,
     List<Donateur>? participants,
     List<int>? followers,
+    Don? don,
   }) {
     return Campagne(
       idPost: idPost ?? this.idPost,
