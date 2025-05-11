@@ -15,6 +15,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:myapp/main.dart';
 import 'package:flutter/services.dart';
 import 'package:myapp/widgets/cards/campagne_card.dart';
+import 'package:myapp/widgets/cards/post_card.dart';
 
 class FeedPage extends StatefulWidget {
   final String userType;
@@ -755,146 +756,18 @@ class _FeedPageState extends State<FeedPage> {
     }
 
     return Column(
-      children: _posts.map((post) => _buildPostCard(post)).toList(),
-    );
-  }
-
-  Widget _buildPostCard(Post post) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          '/post-details',
-          arguments: {'post': post},
+      children: _posts.map((post) {
+        return PostCard(
+          post: post,
+          onTap: () {
+            Navigator.pushNamed(
+              context,
+              '/post-details',
+              arguments: {'post': post},
+            );
+          },
         );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: CachedNetworkImage(
-                imageUrl: post.image ?? 'https://via.placeholder.com/100x100',
-                width: 100,
-                height: 100,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-                errorWidget: (context, url, error) => Image.asset(
-                  'assets/images/placeholder.jpg',
-                  width: 100,
-                  height: 100,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    post.titre,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  FutureBuilder(
-                    future: supabase.from('acteur').select('''
-                          type_acteur,
-                          nom_admin,
-                          prenom_admin,
-                          nom_association,
-                          email,
-                          donateur(nom, prenom),
-                          beneficiaire(nom, prenom)
-                        ''').eq('id_acteur', post.idActeur).single(),
-                    builder: (context, snapshot) {
-                      String creatorName = 'Inconnu';
-                      if (snapshot.hasData) {
-                        final data = snapshot.data as Map;
-                        final type = TypeActeur.values.byName(data['type_acteur']);
-                        if (type == TypeActeur.admin) {
-                          creatorName = '${data['prenom_admin']} ${data['nom_admin']}';
-                        } else if (data['nom_association'] != null) {
-                          creatorName = data['nom_association'];
-                        } else if (data['donateur'] != null) {
-                          creatorName = '${data['donateur']['prenom']} ${data['donateur']['nom']}';
-                        } else if (data['beneficiaire'] != null) {
-                          creatorName = '${data['beneficiaire']['prenom']} ${data['beneficiaire']['nom']}';
-                        } else {
-                          creatorName = data['email']?.split('@')[0] ?? 'Inconnu';
-                        }
-                      }
-                      return Row(
-                        children: [
-                          Text(
-                            creatorName,
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                          ),
-                          const SizedBox(width: 4),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: LightAppPallete.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(2),
-                            child: const Icon(
-                              Icons.check,
-                              color: Colors.white,
-                              size: 10,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.favorite, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${post.likes.length}',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Icon(Icons.comment, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${post.commentaires.length}',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            post.dateLimite != null
-                                ? '${post.dateLimite!.difference(DateTime.now()).inDays} jours restants'
-                                : 'Pas de limite',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      }).toList(),
     );
   }
 

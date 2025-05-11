@@ -10,7 +10,10 @@ import 'package:myapp/onboarding_screen.dart';
 import 'package:myapp/screens/auth/AuthGateScreen.dart';
 import 'package:myapp/widgets/pages/campagne_page.dart';
 import 'package:myapp/widgets/pages/post_page.dart';
-
+import 'package:myapp/screens/admin/profile_admin.dart'; 
+import 'package:myapp/screens/utilisateur/association/profile_association.dart'; 
+import 'package:myapp/screens/utilisateur/beneficiaire/profile_beneficiaire.dart';
+import 'package:myapp/screens/utilisateur/donateur/profile_donateur.dart'; 
 
 class RouteGenerator {
   static const String splash = '/';
@@ -25,6 +28,10 @@ class RouteGenerator {
   static const String beneficiaireHome = '/beneficiaire-Home';
   static const String campagneDetails = '/campagne-details';
   static const String postDetails = '/post-details';
+  static const String profileAdmin = '/profile-admin';
+  static const String profileAssociation = '/profile-association';
+  static const String profileBeneficiaire = '/profile-beneficiaire';
+  static const String profileDonateur = '/profile-donateur';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -54,6 +61,14 @@ class RouteGenerator {
       case postDetails:
         final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(builder: (_) => PostDetailsPage(post: args?['post']));
+      case profileAdmin:
+        return MaterialPageRoute(builder: (_) => const ProfileAdmin());
+      case profileAssociation:
+        return MaterialPageRoute(builder: (_) => const ProfileAssociation());
+      case profileBeneficiaire:
+        return MaterialPageRoute(builder: (_) => const ProfileBeneficiaire());
+      case profileDonateur:
+        return MaterialPageRoute(builder: (_) => const ProfileDonateur());
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

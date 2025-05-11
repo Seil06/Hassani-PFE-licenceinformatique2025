@@ -1,3 +1,4 @@
 {
-    "java.configuration.updateBuildConfiguration": "automatic"
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "cmake.sourceDirectory": "D:/Vscode/Application PFE/Hassani-PFE-licenceinformatique2025/myapp/linux"
 }
