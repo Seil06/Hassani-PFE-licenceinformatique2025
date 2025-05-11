@@ -1,5 +1,8 @@
+import 'package:myapp/models/commentaire.dart';
+import 'package:myapp/models/like.dart';
+import 'package:myapp/models/note.dart';
 import 'package:myapp/models/post.dart';
-import 'package:myapp/models/association.dart';
+import 'package:myapp/models/utilisateur.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum MotCles {
@@ -59,113 +62,109 @@ class SearchService {
     MotCles.reservoirsOxygene: 'assets/icons/Reservoirs_oxygene.ico',
   };
 
-  Future<List<dynamic>> searchContent({
-    required String query,
-    MotCles? motCle,
-    double? latitude,
-    double? longitude,
-    double maxDistanceKm = 50.0,
-    bool includePosts = true,
-    bool includeCampagnes = true,
-  }) async {
-    final supabase = Supabase.instance.client;
-    List<dynamic> results = [];
-
-    // Search posts
-    if (includePosts) {
-      var postQuery = supabase
-          .from('post')
-          .select('*, post_mot_cle!inner(id_mot_cle, mot_cle(nom))');
-
-      if (query.isNotEmpty) {
-        postQuery = postQuery.or('titre.ilike.%$query%,description.ilike.%$query%');
-      }
-
-      if (motCle != null) {
-        postQuery = postQuery.eq('post_mot_cle.mot_cle.nom', motCle.name);
-      }
-
-      if (latitude != null && longitude != null) {
-        postQuery = postQuery.filter(
-          'adresse_utilisateur',
-          'st_dwithin',
-          'st_point($longitude, $latitude), ${maxDistanceKm * 1000}',
-        );
-      }
-
-      final postResponse = await postQuery;
-      results.addAll(postResponse.map((map) => Post.fromMap(map)));
-    }
-
-    // Search campagnes
-    if (includeCampagnes) {
-      var campagneQuery = supabase
-          .from('campagne')
-          .select('*, post_mot_cle!inner(id_mot_cle, mot_cle(nom))');
-
-      if (query.isNotEmpty) {
-        campagneQuery = campagneQuery.or('titre.ilike.%$query%,description.ilike.%$query%');
-      }
-
-      if (motCle != null) {
-        campagneQuery = campagneQuery.eq('post_mot_cle.mot_cle.nom', motCle.name);
-      }
-
-      if (latitude != null && longitude != null) {
-        campagneQuery = campagneQuery.filter(
-          'adresse_utilisateur',
-          'st_dwithin',
-          'st_point($longitude, $latitude), ${maxDistanceKm * 1000}',
-        );
-      }
-
-      final campagneResponse = await campagneQuery;
-      results.addAll(campagneResponse.map((map) => Campagne.fromMap(map)));
-    }
-
-    return results;
-  }
-
-  Future<List<MotCles>> getKeywordsForPost(int postId) async {
-    final supabase = Supabase.instance.client;
-    final response = await supabase
-        .from('post_mot_cle')
-        .select('mot_cle(nom)')
-        .eq('id_post', postId);
-
-    if (response.isEmpty) {
-      return [];
-    }
-
-    return response
-        .map<MotCles>((map) => MotCles.values.byName(map['mot_cle']['nom']))
-        .toList();
-  }
-
-  Future<List<MotCles>> getKeywordsForCampagne(int campagneId) async {
-    final supabase = Supabase.instance.client;
-    final response = await supabase
-        .from('post_mot_cle')
-        .select('mot_cle(nom)')
-        .eq('id_campagne', campagneId);
-
-    if (response.isEmpty) {
-      return [];
-    }
-
-    return response
-        .map<MotCles>((map) => MotCles.values.byName(map['mot_cle']['nom']))
-        .toList();
-  }
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   Future<List<Post>> searchPosts({String query = '', MotCles? motCle}) async {
-    var queryBuilder = Supabase.instance.client
-        .from('post')
-        .select('*, post_mot_cle(mot_cle(nom))');
-    if (motCle != null) {
-      queryBuilder = queryBuilder.eq('post_mot_cle.mot_cle.nom', motCle.name);
+    try {
+      // Build the initial query for posts
+      var postQuery = _supabase
+          .from('post')
+          .select('*, don:id_don(*)')
+          .order('id_post', ascending: false);
+
+      // Apply search query if provided
+  if (query.isNotEmpty) {
+  final allPosts = await postQuery;
+  return allPosts
+      .where((post) => post['titre']?.toLowerCase().contains(query.toLowerCase()) ?? false)
+      .map((post) => Post.fromMap(post))
+      .toList();
+   }
+
+      final response = await postQuery;
+
+      List<Post> posts = [];
+
+      for (final postData in response) {
+        Post post = Post.fromMap(postData);
+
+        // Fetch motsCles
+        var motsClesQuery = _supabase
+            .from('post_mot_cle')
+            .select('mot_cle:id_mot_cle(nom)')
+            .eq('id_post', post.idPost ?? 0);
+
+        final motsClesData = await motsClesQuery;
+        List<MotCles> motsCles = motsClesData
+            .map<MotCles>((item) => MotCles.values.byName(item['mot_cle']['nom'] ?? 'autre'))
+            .toList();
+
+        // Apply motCle filter if provided
+        if (motCle != null && !motsCles.contains(motCle)) {
+          continue; // Skip this post if it doesn't match the motCle filter
+        }
+
+        // Fetch notes
+        final notesData = await _supabase
+            .from('note')
+            .select('*')
+            .eq('id_post', post.idPost ?? 0);
+        List<Note> notes = notesData.map<Note>((note) => Note.fromMap(note)).toList();
+
+        // Fetch likes
+        final likesData = await _supabase
+            .from('like')
+            .select('*')
+            .eq('id_post', post.idPost ?? 0);
+        List<Like> likes = likesData.map<Like>((like) => Like.fromMap(like)).toList();
+
+        // Fetch commentaires
+        final commentairesData = await _supabase
+            .from('commentaire')
+            .select('*')
+            .eq('id_post', post.idPost ?? 0);
+        List<Commentaire> commentaires = commentairesData
+            .map<Commentaire>((comment) => Commentaire.fromMap(comment))
+            .toList();
+
+        // Fetch tagged users
+        final tagsData = await _supabase
+            .from('post_utilisateur_tag')
+            .select('utilisateur:id_utilisateur(*)')
+            .eq('id_post', post.idPost ?? 0);
+        List<Utilisateur> utilisateursTaguer = tagsData
+            .map<Utilisateur>((tag) => Utilisateur.fromMap(tag['utilisateur']))
+            .toList();
+
+        // Create the complete post
+        Post completPost = Post(
+          idPost: post.idPost,
+          titre: post.titre,
+          description: post.description,
+          typePost: post.typePost,
+          typeDon: post.typeDon,
+          image: post.image,
+          lieuActeur: post.lieuActeur,
+          dateLimite: post.dateLimite,
+          latitude: post.latitude,
+          longitude: post.longitude,
+          notes: notes,
+          likes: likes,
+          commentaires: commentaires,
+          utilisateursTaguer: utilisateursTaguer,
+          motsCles: motsCles,
+          idActeur: post.idActeur,
+          don: post.don,
+        );
+
+        completPost.calculateNoteMoyenne();
+        posts.add(completPost);
+      }
+
+      return posts;
+    } catch (e) {
+      print('Error in searchPosts: $e');
+      throw Exception('Failed to search posts: $e');
     }
-    final response = await queryBuilder;
-    return (response as List<dynamic>).map((map) => Post.fromMap(map)).toList();
   }
 }

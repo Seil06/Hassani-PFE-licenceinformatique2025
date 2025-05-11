@@ -8,6 +8,9 @@ import 'package:myapp/screens/utilisateur/donateur/donateur_home.dart';
 import 'package:myapp/splash_screen.dart';
 import 'package:myapp/onboarding_screen.dart';
 import 'package:myapp/screens/auth/AuthGateScreen.dart';
+import 'package:myapp/widgets/pages/campagne_page.dart';
+import 'package:myapp/widgets/pages/post_page.dart';
+
 
 class RouteGenerator {
   static const String splash = '/';
@@ -20,6 +23,8 @@ class RouteGenerator {
   static const String donateurHome = '/donateur-Home';
   static const String associationHome = '/association-Home';
   static const String beneficiaireHome = '/beneficiaire-Home';
+  static const String campagneDetails = '/campagne-details';
+  static const String postDetails = '/post-details';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -43,6 +48,12 @@ class RouteGenerator {
         return MaterialPageRoute(builder: (_) => const AssociationHome()); 
       case beneficiaireHome:
         return MaterialPageRoute(builder: (_) => const BeneficiaireHome()); 
+      case campagneDetails:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(builder: (_) => CampagneDetailsPage(campagne: args?['campagne']));
+      case postDetails:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(builder: (_) => PostDetailsPage(post: args?['post']));
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

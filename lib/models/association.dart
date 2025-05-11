@@ -152,38 +152,62 @@ class Campagne extends Post {
     };
   }
 
-  factory Campagne.fromMap(Map<String, dynamic> map) {
-    return Campagne(
-      idPost: map['id_campagne'],
-      titre: map['titre'],
-      description: map['description'],
-      typeDon: TypeDon.values.byName(map['type_don']),
-      lieuActeur: map['lieu_acteur'],
-      typeCampagne: TypeCampagne.values.byName(map['type_campagne']),
-      etatCampagne: EtatCampagne.values.byName(map['etat_campagne']),
-      dateDebut: map['date_debut'] != null ? DateTime.parse(map['date_debut']) : null,
-      dateFin: map['date_fin'] != null ? DateTime.parse(map['date_fin']) : null,
-      lieuEvenement: map['lieu_evenement'],
-      montantObjectif: map['montant_objectif'] != null
-          ? double.tryParse(map['montant_objectif'].toString()) ?? 0.0
-          : 0.0,
-      montantRecolte: map['montant_recolte'] != null
-          ? double.tryParse(map['montant_recolte'].toString()) ?? 0.0
-          : 0.0,
-      nombreParticipants: map['nombre_participants'] as int? ?? 0,
-      image: map['image'],
-      dateLimite: map['date_limite'] != null ? DateTime.parse(map['date_limite']) : null,
-      latitude: map['location'] != null
-          ? GeoUtils.parsePoint(map['location'])['latitude'] ?? 0.0
-          : null,
-      longitude: map['location'] != null
-          ? GeoUtils.parsePoint(map['location'])['longitude'] ?? 0.0
-          : null,
-      idActeur: map['id_acteur'],
-      idAssociation: map['id_association'],
-      participants: [], // Load via separate query
-    );
+factory Campagne.fromMap(Map<String, dynamic> map) {
+  print('Campagne.fromMap input: $map'); // Debug log
+  double? latitude;
+  double? longitude;
+  String? lieuEvenement;
+  if (map['lieu_evenement'] != null) {
+    final lieuRaw = map['lieu_evenement'].toString();
+    print('Raw lieu_evenement: $lieuRaw'); // Debug log
+    if (lieuRaw.startsWith('POINT(')) {
+      final coords = GeoUtils.parsePoint(lieuRaw);
+      latitude = coords['latitude'];
+      longitude = coords['longitude'];
+      lieuEvenement = lieuRaw;
+    }
   }
+
+  return Campagne(
+    idPost: int.tryParse(map['id_campagne'].toString()) ?? 0,
+    titre: map['titre']?.toString() ?? 'Titre inconnu',
+    description: map['description']?.toString() ?? '',
+    typeDon: map['type_don'] != null
+        ? TypeDon.values.byName(map['type_don'].toString())
+        : TypeDon.autre,
+    lieuActeur: map['lieu_acteur']?.toString() ?? '',
+    typeCampagne: map['type_campagne'] != null
+        ? TypeCampagne.values.byName(map['type_campagne'].toString())
+        : TypeCampagne.collecte,
+    etatCampagne: map['etat_campagne'] != null
+        ? EtatCampagne.values.byName(map['etat_campagne'].toString())
+        : EtatCampagne.brouillon,
+    dateDebut: map['date_debut'] != null
+        ? DateTime.tryParse(map['date_debut'].toString())
+        : null,
+    dateFin: map['date_fin'] != null
+        ? DateTime.tryParse(map['date_fin'].toString())
+        : null,
+    lieuEvenement: lieuEvenement,
+    montantObjectif: map['montant_objectif'] != null
+        ? double.tryParse(map['montant_objectif'].toString()) ?? 0.0
+        : 0.0,
+    montantRecolte: map['montant_recolte'] != null
+        ? double.tryParse(map['montant_recolte'].toString()) ?? 0.0
+        : 0.0,
+    nombreParticipants: int.tryParse(map['nombre_participants']?.toString() ?? '0') ?? 0,
+    image: map['image']?.toString(),
+    dateLimite: map['date_limite'] != null
+        ? DateTime.tryParse(map['date_limite'].toString())
+        : null,
+    latitude: latitude,
+    longitude: longitude,
+    idActeur: int.tryParse(map['id_acteur']?.toString() ?? '0') ?? 0,
+    idAssociation: int.tryParse(map['id_association']?.toString() ?? '0') ?? 0,
+    participants: [], // Load via separate query
+    followers: (map['followers'] as List<dynamic>?)?.cast<int>() ?? [],
+  );
+}
 
   Campagne copyWith({
     int? idPost,

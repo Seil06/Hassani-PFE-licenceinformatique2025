@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:myapp/models/acteur.dart';
 import 'package:myapp/models/commentaire.dart';
 import 'package:myapp/models/don.dart';
@@ -6,6 +8,7 @@ import 'package:myapp/models/like.dart';
 import 'package:myapp/models/post.dart';
 import 'package:myapp/models/donateur.dart';
 import 'package:myapp/models/association.dart';
+import 'package:myapp/models/utils.dart'; // Import for GeoUtils
 import 'package:myapp/services/SearchService.dart';
 import 'package:myapp/theme/app_pallete.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -14,7 +17,6 @@ import 'package:myapp/main.dart';
 class FeedPage extends StatefulWidget {
   final String userType;
   const FeedPage({super.key, required this.userType});
-
   @override
   State<FeedPage> createState() => _FeedPageState();
 }
@@ -30,7 +32,27 @@ class _FeedPageState extends State<FeedPage> {
   @override
   void initState() {
     super.initState();
+    _requestLocationPermission();
     _fetchData();
+  }
+
+  Future<void> _requestLocationPermission() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location permission denied')),
+        );
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location permission denied forever')),
+      );
+      return;
+    }
   }
 
   Future<List<Donateur>> fetchCampagneParticipants(int campagneId) async {
@@ -43,7 +65,7 @@ class _FeedPageState extends State<FeedPage> {
 
     final uniqueDonateurs = <int, Map>{};
     for (var map in response) {
-      final idActeur = map['donateur']['id_acteur'] as int;
+      final idActeur = int.tryParse(map['donateur']['id_acteur'].toString()) ?? 0;
       if (!uniqueDonateurs.containsKey(idActeur)) {
         uniqueDonateurs[idActeur] = map['donateur'];
       }
@@ -61,7 +83,7 @@ class _FeedPageState extends State<FeedPage> {
         .select('id_utilisateur')
         .eq('id_campagne', campagneId);
 
-    return response.map<int>((map) => map['id_utilisateur'] as int).toList();
+    return response.map<int>((map) => int.tryParse(map['id_utilisateur'].toString()) ?? 0).toList();
   }
 
   Future<List<Like>> fetchCampagneLikes(int campagneId) async {
@@ -74,7 +96,7 @@ class _FeedPageState extends State<FeedPage> {
     return response.map((map) => Like.fromMap({
           ...map,
           'utilisateur': {
-            'id_acteur': map['id_utilisateur'],
+            'id_acteur': int.tryParse(map['id_utilisateur'].toString()) ?? 0,
           }
         })).toList();
   }
@@ -89,7 +111,7 @@ class _FeedPageState extends State<FeedPage> {
     return response.map((map) => Commentaire.fromMap({
           ...map,
           'acteur': {
-            'id_acteur': map['id_acteur'],
+            'id_acteur': int.tryParse(map['id_acteur'].toString()) ?? 0,
           }
         })).toList();
   }
@@ -100,29 +122,41 @@ class _FeedPageState extends State<FeedPage> {
     });
     try {
       final supabase = Supabase.instance.client;
+      // Fetch campaigns directly from the campagne table
       final campagneResponse = await supabase
-          .from('post')
+          .from('campagne')
           .select('''
-              id_post, titre, description, type_post, image, date_limite, 
-              note_moyenne, id_acteur, id_don,
-              campagne!fk_post(
-                id_campagne, etat_campagne, date_debut, date_fin, 
-                lieu_evenement, type_campagne, montant_objectif, montant_recolte, 
-                nombre_participants, id_association
+              id_campagne, etat_campagne, date_debut, date_fin, 
+              lieu_evenement, type_campagne, montant_objectif, montant_recolte, 
+              nombre_participants, id_association,
+              association(nom_association),
+              post!id_campagne(
+                id_post, titre, description, type_post, image, date_limite, 
+                note_moyenne, id_acteur, id_don
               ),
-              post_mot_cle(id_mot_cle, mot_cle(nom))
-          ''')
-          .eq('type_post', TypePost.campagne.name);
+              post_mot_cle!left(id_post, id_mot_cle, mot_cle(nom))
+          ''');
 
-      _campagnes = campagneResponse.map<Campagne>((map) {
-        final campagneData = map['campagne'];
-        final motsCles = (map['post_mot_cle'] as List<dynamic>)
-            .map((mc) => MotCles.values.byName(mc['mot_cle']['nom']))
+      print('Raw campagneResponse: $campagneResponse'); // Debug log
+      _campagnes = campagneResponse.map<Campagne>((data) {
+        print('Raw data: $data'); // Debug log
+
+        // Extract post data and merge with campaign data
+        final postData = data['post'] as Map<String, dynamic>? ?? {};
+        final mergedData = {
+          ...data,
+          ...postData,
+          'id_post': data['id_campagne'],
+        };
+        print('Merged data: $mergedData'); // Debug log
+
+        final motsCles = (data['post_mot_cle'] as List<dynamic>? ?? [])
+            .map((mc) => MotCles.values.byName((mc['mot_cle']['nom'] as String?) ?? 'autre'))
             .toList();
 
         // Map type_campagne to TypeDon
         TypeDon typeDon;
-        switch (campagneData['type_campagne']) {
+        switch (data['type_campagne']?.toString()) {
           case 'collecte':
             typeDon = TypeDon.materiel;
             break;
@@ -139,63 +173,82 @@ class _FeedPageState extends State<FeedPage> {
             typeDon = TypeDon.autre;
         }
 
+        // Parse lieu_evenement (GEOGRAPHY field)
+        double? latitude;
+        double? longitude;
+        String? lieuEvenement;
+        if (data['lieu_evenement'] != null) {
+          final lieuRaw = data['lieu_evenement'].toString();
+          print('Raw lieu_evenement: $lieuRaw'); // Debug log
+          if (lieuRaw.startsWith('POINT(')) {
+            final coords = GeoUtils.parsePoint(lieuRaw);
+            latitude = coords['latitude'];
+            longitude = coords['longitude'];
+            lieuEvenement = lieuRaw;
+          } else if (lieuRaw.isNotEmpty) {
+            print('Unexpected lieu_evenement format: $lieuRaw');
+          }
+        }
+
         return Campagne(
-          idPost: map['id_post'],
-          titre: map['titre'],
-          description: map['description'],
+          idPost: int.tryParse(mergedData['id_campagne'].toString()) ?? 0,
+          titre: mergedData['titre']?.toString() ?? 'Titre inconnu',
+          description: mergedData['description']?.toString() ?? '',
           typeDon: typeDon,
-          lieuActeur: campagneData['lieu_evenement'] != null
-              ? 'POINT(${campagneData['lieu_evenement']['coordinates'][0]} ${campagneData['lieu_evenement']['coordinates'][1]})'
-              : '',
-          typeCampagne: TypeCampagne.values.byName(campagneData['type_campagne']),
-          etatCampagne: EtatCampagne.values.byName(campagneData['etat_campagne']),
-          dateDebut: campagneData['date_debut'] != null
-              ? DateTime.parse(campagneData['date_debut'])
+          lieuActeur: mergedData['lieu_acteur']?.toString() ?? '',
+          typeCampagne: mergedData['type_campagne'] != null
+              ? TypeCampagne.values.byName(mergedData['type_campagne'].toString())
+              : TypeCampagne.collecte,
+          etatCampagne: mergedData['etat_campagne'] != null
+              ? EtatCampagne.values.byName(mergedData['etat_campagne'].toString())
+              : EtatCampagne.brouillon,
+          dateDebut: mergedData['date_debut'] != null
+              ? DateTime.tryParse(mergedData['date_debut'].toString())
               : null,
-          dateFin: campagneData['date_fin'] != null
-              ? DateTime.parse(campagneData['date_fin'])
+          dateFin: mergedData['date_fin'] != null
+              ? DateTime.tryParse(mergedData['date_fin'].toString())
               : null,
-          lieuEvenement: campagneData['lieu_evenement'] != null
-              ? 'POINT(${campagneData['lieu_evenement']['coordinates'][0]} ${campagneData['lieu_evenement']['coordinates'][1]})'
+          lieuEvenement: lieuEvenement,
+          montantObjectif: double.tryParse(mergedData['montant_objectif']?.toString() ?? '0') ?? 0.0,
+          montantRecolte: double.tryParse(mergedData['montant_recolte']?.toString() ?? '0') ?? 0.0,
+          nombreParticipants: int.tryParse(mergedData['nombre_participants']?.toString() ?? '0') ?? 0,
+          image: mergedData['image']?.toString(),
+          dateLimite: mergedData['date_limite'] != null
+              ? DateTime.tryParse(mergedData['date_limite'].toString())
               : null,
-          montantObjectif: campagneData['montant_objectif']?.toDouble() ?? 0.0,
-          montantRecolte: campagneData['montant_recolte']?.toDouble() ?? 0.0,
-          nombreParticipants: campagneData['nombre_participants'] ?? 0,
-          image: map['image'],
-          dateLimite: map['date_limite'] != null
-              ? DateTime.parse(map['date_limite'])
-              : null,
-          latitude: campagneData['lieu_evenement'] != null
-              ? campagneData['lieu_evenement']['coordinates'][1]
-              : null,
-          longitude: campagneData['lieu_evenement'] != null
-              ? campagneData['lieu_evenement']['coordinates'][0]
-              : null,
-          idActeur: map['id_acteur'],
-          idAssociation: campagneData['id_association'],
+          latitude: latitude,
+          longitude: longitude,
+          idActeur: int.tryParse(mergedData['id_acteur']?.toString() ?? '0') ?? 0,
+          idAssociation: int.tryParse(mergedData['id_association']?.toString() ?? '0') ?? 0,
           motsCles: motsCles,
         );
       }).toList();
 
       // Load participants, followers, likes, and comments
       for (var i = 0; i < _campagnes.length; i++) {
-        final participants = await fetchCampagneParticipants(_campagnes[i].idPost!);
-        final followers = await fetchCampagneFollowers(_campagnes[i].idPost!);
-        final likes = await fetchCampagneLikes(_campagnes[i].idPost!);
-        final comments = await fetchCampagneComments(_campagnes[i].idPost!);
-        _campagnes[i] = _campagnes[i].copyWith(
-          participants: participants,
-          followers: followers,
-          likes: likes,
-          commentaires: comments,
-        );
+        try {
+          final participants = await fetchCampagneParticipants(_campagnes[i].idPost ?? 0);
+          final followers = await fetchCampagneFollowers(_campagnes[i].idPost ?? 0);
+          final likes = await fetchCampagneLikes(_campagnes[i].idPost ?? 0);
+          final comments = await fetchCampagneComments(_campagnes[i].idPost ?? 0);
+          _campagnes[i] = _campagnes[i].copyWith(
+            participants: participants,
+            followers: followers,
+            likes: likes,
+            commentaires: comments,
+          );
+        } catch (e) {
+          print('Error loading details for campagne ${_campagnes[i].idPost}: $e');
+        }
       }
 
+      // Fetch posts
       _posts = await _searchService.searchPosts(
         query: '',
         motCle: _selectedCategory,
       );
     } catch (e) {
+      print('Error in _fetchData: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur lors du chargement des données : $e')),
       );
@@ -358,7 +411,7 @@ class _FeedPageState extends State<FeedPage> {
                     BoxShadow(
                       color: Colors.black.withOpacity(0.1),
                       blurRadius: 8,
-                      ),
+                    ),
                   ],
                 ),
                 child: IconButton(
@@ -434,8 +487,11 @@ class _FeedPageState extends State<FeedPage> {
   Widget _buildCampagneCard(Campagne campagne) {
     return GestureDetector(
       onTap: () {
-        // TODO: Navigate to CampagneDetailsPage
-        // Navigator.pushNamed(context, '/campagne-details', arguments: campagne);
+        Navigator.pushNamed(
+          context,
+          '/campagne-details',
+          arguments: {'campagne': campagne},
+        );
       },
       child: Container(
         width: 250,
@@ -460,12 +516,13 @@ class _FeedPageState extends State<FeedPage> {
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                   ),
-                  child: Image.network(
-                    campagne.image ?? 'assets/images/placeholder.jpg',
+                  child: CachedNetworkImage(
+                    imageUrl: campagne.image ?? 'https://via.placeholder.com/250x120',
                     height: 120,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Image.asset(
+                    placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                    errorWidget: (context, url, error) => Image.asset(
                       'assets/images/placeholder.jpg',
                       height: 120,
                       width: double.infinity,
@@ -587,6 +644,32 @@ class _FeedPageState extends State<FeedPage> {
                       fontSize: 10,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        await Supabase.instance.client.from('don').insert({
+                          'num_carte_bancaire': '1234567890123456',
+                          'montant': 5000.0,
+                          'date_don': DateTime.now().toIso8601String(),
+                          'type_don': 'financier',
+                          'etat_don': 'enAttente',
+                          'id_donateur': 4, // Replace with actual user ID
+                          'id_campagne': campagne.idPost,
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Donation successful')),
+                        );
+                        // Refresh the campaign data to update participant count
+                        await _fetchData();
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Donation failed: $e')),
+                        );
+                      }
+                    },
+                    child: const Text('Faire un don'),
+                  ),
                 ],
               ),
             ),
@@ -684,8 +767,11 @@ class _FeedPageState extends State<FeedPage> {
   Widget _buildPostCard(Post post) {
     return GestureDetector(
       onTap: () {
-        // TODO: Navigate to PostDetailsPage
-        // Navigator.pushNamed(context, '/post-details', arguments: post);
+        Navigator.pushNamed(
+          context,
+          '/post-details',
+          arguments: {'post': post},
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
@@ -694,12 +780,13 @@ class _FeedPageState extends State<FeedPage> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                post.image ?? 'assets/images/placeholder.jpg',
+              child: CachedNetworkImage(
+                imageUrl: post.image ?? 'https://via.placeholder.com/100x100',
                 width: 100,
                 height: 100,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Image.asset(
+                placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                errorWidget: (context, url, error) => Image.asset(
                   'assets/images/placeholder.jpg',
                   width: 100,
                   height: 100,
