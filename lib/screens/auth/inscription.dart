@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb; // For platform detection
 import 'package:flutter/material.dart';
 import 'package:myapp/routes/routes.dart';
+import 'package:myapp/theme/theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:myapp/main.dart';
 import 'package:myapp/theme/app_pallete.dart';
@@ -123,7 +124,7 @@ class _InscriptionState extends State<Inscription> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Veuillez sélectionner un document d\'autorisation'),
-          backgroundColor: Colors.red,
+          backgroundColor: LightAppPallete.error,
         ),
       );
       return;
@@ -131,8 +132,8 @@ class _InscriptionState extends State<Inscription> {
     if (userType == 'bénéficiaire' && _selectedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Veuillez sélectionner un document de situation'),
-          backgroundColor: Colors.red,
+          content: Text('Veuillez sélectionner un document pour confirmer votre situation'),
+          backgroundColor: LightAppPallete.error,
         ),
       );
       return;
@@ -316,7 +317,7 @@ class _InscriptionState extends State<Inscription> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMessage),
-          backgroundColor: Colors.red,
+          backgroundColor: LightAppPallete.error,
         ),
       );
     } finally {
@@ -339,281 +340,285 @@ class _InscriptionState extends State<Inscription> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: LightAppPallete.primaryDark,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: MediaQuery.of(context).size.width > 600 ? 40 : 20,
-              vertical: 20,
-            ),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              decoration: BoxDecoration(
-                color: LightAppPallete.background,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+    return ThemeBackground(
+      isDarkMode: Theme.of(context).brightness == Brightness.dark,
+      child: Scaffold(
+        backgroundColor: Colors.transparent, // Transparent to show gradient
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.of(context).size.width > 600 ? 40 : 20,
+                vertical: 20,
               ),
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  children: [
-                    Image.asset(
-                      'assets/images/logo.png',
-                      height: 80,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.favorite,
-                        size: 80,
-                        color: LightAppPallete.primary,
-                      ),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
+                decoration: BoxDecoration(
+                  color: LightAppPallete.background,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'S\'inscrire',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Créez un compte pour aider les nécessiteux',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 24),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width - 48,
+                  ],
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    children: [
+                      Image.asset(
+                        'assets/images/logo.png',
+                        height: 80,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          Icons.favorite,
+                          size: 80,
+                          color: LightAppPallete.primary,
                         ),
-                        child: ToggleButtons(
-                          isSelected: [
-                            userType == 'donateur',
-                            userType == 'association',
-                            userType == 'bénéficiaire',
-                          ],
-                          onPressed: (index) {
-                            setState(() {
-                              userType = ['donateur', 'association', 'bénéficiaire'][index];
-                              typeBeneficiaire = null; // Reset dropdown when changing user type
-                              _selectedFile = null; // Reset selected file when changing user type
-                              _fileName = null;
-                            });
-                          },
-                          children: const [
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              child: Text('Donateur'),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              child: Text('Association'),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              child: Text('Bénéficiaire'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    if (userType == 'donateur' || userType == 'bénéficiaire') ...[
-                      TextFormField(
-                        controller: prenomController,
-                        decoration: const InputDecoration(
-                          labelText: 'Prénom',
-                          prefixIcon: Icon(Icons.person),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Prénom requis';
-                          }
-                          return null;
-                        },
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(
-                        controller: nomController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nom',
-                          prefixIcon: Icon(Icons.person),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Nom requis';
-                          }
-                          return null;
-                        },
+                      Text(
+                        'S\'inscrire',
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      const SizedBox(height: 16),
-                    ],
-                    if (userType == 'association') ...[
-                      TextFormField(
-                        controller: nomAssociationController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nom de l\'association',
-                          prefixIcon: Icon(Icons.business),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Nom de l\'association requis';
-                          }
-                          return null;
-                        },
+                      const SizedBox(height: 8),
+                      Text(
+                        'Créez un compte pour aider les nécessiteux',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      const SizedBox(height: 16),
-                    ],
-                    TextFormField(
-                      controller: numCarteIdentiteController,
-                      decoration: const InputDecoration(
-                        labelText: 'Numéro de carte d\'identité biométrique',
-                        hintText: 'Ex: 123456789012345678',
-                        prefixIcon: Icon(Icons.card_membership),
-                      ),
-                      validator: (value) {
-                        if (value != null && value.isNotEmpty && value.length == 18) {
-                          return 'Le numéro doit avoir exactement 18 caractères';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    if (userType == 'bénéficiaire') ...[
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: DropdownButtonFormField<String>(
-                          value: typeBeneficiaire,
-                          decoration: const InputDecoration(
-                            labelText: 'Statut',
-                            prefixIcon: Icon(Icons.category),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            border: InputBorder.none,
+                      const SizedBox(height: 24),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width - 48,
                           ),
-                          isExpanded: true,
-                          hint: const Text('Sélectionnez votre situation'),
-                          items: beneficiaireTypes
-                              .map((type) => DropdownMenuItem(
-                                    value: type,
-                                    child: Text(
-                                      _formatBeneficiaireType(type),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ))
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              typeBeneficiaire = value;
-                            });
-                          },
+                          child: ToggleButtons(
+                            isSelected: [
+                              userType == 'donateur',
+                              userType == 'association',
+                              userType == 'bénéficiaire',
+                            ],
+                            onPressed: (index) {
+                              setState(() {
+                                userType = ['donateur', 'association', 'bénéficiaire'][index];
+                                typeBeneficiaire = null; // Reset dropdown when changing user type
+                                _selectedFile = null; // Reset selected file when changing user type
+                                _fileName = null;
+                              });
+                            },
+                            children: const [
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                child: Text('Donateur'),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                child: Text('Association'),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                child: Text('Bénéficiaire'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      if (userType == 'donateur' || userType == 'bénéficiaire') ...[
+                        TextFormField(
+                          controller: prenomController,
+                          decoration: const InputDecoration(
+                            labelText: 'Prénom',
+                            prefixIcon: Icon(Icons.person),
+                          ),
                           validator: (value) {
-                            if (value == null) {
-                              return 'Type de bénéficiaire requis';
+                            if (value == null || value.isEmpty) {
+                              return 'Prénom requis';
                             }
                             return null;
                           },
                         ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: nomController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nom',
+                            prefixIcon: Icon(Icons.person),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Nom requis';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (userType == 'association') ...[
+                        TextFormField(
+                          controller: nomAssociationController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nom de l\'association',
+                            prefixIcon: Icon(Icons.business),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Nom de l\'association requis';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      TextFormField(
+                        controller: numCarteIdentiteController,
+                        decoration: const InputDecoration(
+                          labelText: 'Numéro de carte d\'identité biométrique',
+                          hintText: 'Ex: 123456789012345678', 
+                          hintStyle: TextStyle(color: Colors.grey), 
+                          prefixIcon: Icon(Icons.card_membership),
+                        ),
+                        validator: (value) {
+                          if (value != null && value.isNotEmpty && value.length != 18) {
+                            return 'Le numéro doit avoir exactement 18 caractères';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
-                    ],
-                    TextFormField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.email),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Email requis';
-                        } else if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
-                          return "Format d'email invalide";
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Mot de passe',
-                        prefixIcon: Icon(Icons.lock),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Mot de passe requis';
-                        } else if (value.length < 8) {
-                          return 'Le mot de passe doit avoir au moins 8 caractères';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // File picker for Association or Bénéficiaire
-                    if (userType == 'association' || userType == 'bénéficiaire') ...[
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(12),
-                          color: Colors.grey.shade50,
+                      if (userType == 'bénéficiaire') ...[
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: DropdownButtonFormField<String>(
+                            value: typeBeneficiaire,
+                            decoration: const InputDecoration(
+                              labelText: 'Statut',
+                              prefixIcon: Icon(Icons.category),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: InputBorder.none,
+                            ),
+                            isExpanded: true,
+                            hint: const Text('Sélectionnez votre situation'),
+                            items: beneficiaireTypes
+                                .map((type) => DropdownMenuItem(
+                                      value: type,
+                                      child: Text(
+                                        _formatBeneficiaireType(type),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                typeBeneficiaire = value;
+                              });
+                            },
+                            validator: (value) {
+                              if (value == null) {
+                                return 'Type de bénéficiaire requis';
+                              }
+                              return null;
+                            },
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _fileName != null
-                                ? Icon(Icons.check_circle, color: Colors.green, size: 48)
-                                : Icon(Icons.cloud_upload, color: LightAppPallete.primary, size: 48),
-                            const SizedBox(height: 12),
-                            Text(
+                        const SizedBox(height: 16),
+                      ],
+                      TextFormField(
+                        controller: emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.email),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Email requis';
+                          } else if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
+                            return "Format d'email invalide";
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: passwordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Mot de passe',
+                          prefixIcon: Icon(Icons.lock),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Mot de passe requis';
+                          } else if (value.length < 8) {
+                            return 'Le mot de passe doit avoir au moins 8 caractères';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // File picker for Association or Bénéficiaire
+                      if (userType == 'association' || userType == 'bénéficiaire') ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.grey.shade50,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
                               _fileName != null
-                                  ? 'Document sélectionné: $_fileName'
-                                  : userType == 'association'
-                                      ? 'Déposer votre document d\'autorisation ici'
-                                      : 'Déposer votre document de situation ici',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _fileName != null ? Colors.black87 : Colors.grey.shade700,
-                                fontWeight: _fileName != null ? FontWeight.bold : FontWeight.normal,
+                                  ? Icon(Icons.check_circle, color: Colors.green, size: 48)
+                                  : Icon(Icons.cloud_upload, color: LightAppPallete.primary, size: 48),
+                              const SizedBox(height: 12),
+                              Text(
+                                _fileName != null
+                                    ? 'Document sélectionné: $_fileName'
+                                    : userType == 'association'
+                                        ? 'Déposer votre document d\'autorisation ici'
+                                        : 'Déposer votre document de situation ici',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: _fileName != null ? Colors.black87 : Colors.grey.shade700,
+                                  fontWeight: _fileName != null ? FontWeight.bold : FontWeight.normal,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            OutlinedButton.icon(
-                              onPressed: _pickFile,
-                              icon: Icon(Icons.attach_file, size: 18),
-                              label: Text(_fileName == null ? 'Sélectionner un fichier' : 'Changer de fichier'),
-                            ),
-                          ],
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: _pickFile,
+                                icon: Icon(Icons.attach_file, size: 18),
+                                label: Text(_fileName == null ? 'Sélectionner un fichier' : 'Changer de fichier'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _signUp,
+                          child: Text(_isLoading ? 'Inscription...' : 'S\'inscrire'),
                         ),
                       ),
                       const SizedBox(height: 16),
-                    ],
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _signUp,
-                        child: Text(_isLoading ? 'Inscription...' : 'S\'inscrire'),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(context, Connexion.route());
+                        },
+                        child: const Text('Déjà inscrit ? Se connecter'),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(context, Connexion.route());
-                      },
-                      child: const Text('Déjà inscrit ? Se connecter'),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:myapp/routes/routes.dart';
 import 'package:myapp/theme/app_pallete.dart';
@@ -59,111 +60,114 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: LightAppPallete.primaryDark,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            PageView.builder(
-              controller: _pageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentPage = index;
-                });
-              },
-              itemCount: _onboardingData.length,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+    return ThemeBackground(
+      isDarkMode: Theme.of(context).brightness == Brightness.dark,
+      child: Scaffold(
+        backgroundColor: Colors.transparent, // Transparent to show gradient
+        body: SafeArea(
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPage = index;
+                  });
+                },
+                itemCount: _onboardingData.length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.asset(
+                          _onboardingData[index]['image']!,
+                          height: 200,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            Icons.favorite,
+                            size: 200,
+                            color: LightAppPallete.background,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Text(
+                          _onboardingData[index]['title']!,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: LightAppPallete.background,
+                                fontSize: 28,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _onboardingData[index]['description']!,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: LightAppPallete.backgroundAlt,
+                                fontSize: 16,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              Positioned(
+                bottom: 40,
+                left: 0,
+                right: 0,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Image.asset(
-                        _onboardingData[index]['image']!,
-                        height: 200,
-                        errorBuilder: (context, error, stackTrace) => Icon(
-                          Icons.favorite,
-                          size: 200,
-                          color: LightAppPallete.background,
+                      TextButton(
+                        onPressed: _completeOnboarding,
+                        child: Text(
+                          'Skip',
+                          style: Theme.of(context).textButtonTheme.style?.textStyle?.resolve({})?.copyWith(
+                                color: LightAppPallete.background,
+                              ),
                         ),
                       ),
-                      const SizedBox(height: 32),
-                      Text(
-                        _onboardingData[index]['title']!,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: LightAppPallete.background,
-                              fontSize: 28,
+                      Row(
+                        children: List.generate(
+                          _onboardingData.length,
+                          (index) => Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                            width: _currentPage == index ? 12.0 : 8.0,
+                            height: 8.0,
+                            decoration: BoxDecoration(
+                              color: _currentPage == index
+                                  ? LightAppPallete.background
+                                  : LightAppPallete.backgroundAlt,
+                              borderRadius: BorderRadius.circular(4.0),
                             ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _onboardingData[index]['description']!,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: LightAppPallete.backgroundAlt,
-                              fontSize: 16,
-                            ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            Positioned(
-              bottom: 40,
-              left: 0,
-              right: 0,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: _completeOnboarding,
-                      child: Text(
-                        'Skip',
-                        style: Theme.of(context).textButtonTheme.style?.textStyle?.resolve({})?.copyWith(
-                              color: LightAppPallete.background,
-                            ),
-                      ),
-                    ),
-                    Row(
-                      children: List.generate(
-                        _onboardingData.length,
-                        (index) => Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                          width: _currentPage == index ? 12.0 : 8.0,
-                          height: 8.0,
-                          decoration: BoxDecoration(
-                            color: _currentPage == index
-                                ? LightAppPallete.background
-                                : LightAppPallete.backgroundAlt,
-                            borderRadius: BorderRadius.circular(4.0),
                           ),
                         ),
                       ),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        if (_currentPage == _onboardingData.length - 1) {
-                          _completeOnboarding();
-                        } else {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        }
-                      },
-                      child: Text(
-                        _currentPage == _onboardingData.length - 1 ? 'Démarrer' : 'Suivant',
+                      ElevatedButton(
+                        onPressed: () {
+                          if (_currentPage == _onboardingData.length - 1) {
+                            _completeOnboarding();
+                          } else {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        },
+                        child: Text(
+                          _currentPage == _onboardingData.length - 1 ? 'Démarrer' : 'Suivant',
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:myapp/models/acteur.dart';
 import 'package:myapp/models/commentaire.dart';
@@ -7,6 +6,7 @@ import 'package:myapp/models/like.dart';
 import 'package:myapp/models/post.dart';
 import 'package:myapp/models/donateur.dart';
 import 'package:myapp/models/association.dart';
+import 'package:myapp/routes/routes.dart';
 import 'package:myapp/services/PostService.dart'; // Import PostService
 import 'package:myapp/services/CampagneService.dart'; // Import CampagneService
 import 'package:myapp/services/SearchService.dart';
@@ -16,10 +16,12 @@ import 'package:myapp/main.dart';
 import 'package:flutter/services.dart';
 import 'package:myapp/widgets/cards/campagne_card.dart';
 import 'package:myapp/widgets/cards/post_card.dart';
+import 'package:myapp/theme/theme.dart';
 
 class FeedPage extends StatefulWidget {
   final String userType;
   const FeedPage({super.key, required this.userType});
+
   @override
   State<FeedPage> createState() => _FeedPageState();
 }
@@ -58,11 +60,12 @@ class _FeedPageState extends State<FeedPage> {
     }
   }
 
+
+
   Future<int?> _getCurrentDonorId() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return null;
-
       final response = await Supabase.instance.client
           .from('acteur')
           .select('''
@@ -72,13 +75,15 @@ class _FeedPageState extends State<FeedPage> {
           .eq('supabase_user_id', user.id)
           .eq('utilisateur.type_utilisateur', 'donateur')
           .single();
-
       return response['id_acteur'] as int?;
     } catch (e) {
       print('Error getting donor ID: $e');
       return null;
     }
+
   }
+
+
 
   Future<List<Donateur>> fetchCampagneParticipants(int campagneId) async {
     final supabase = Supabase.instance.client;
@@ -94,14 +99,11 @@ class _FeedPageState extends State<FeedPage> {
               )
           ''')
           .eq('id_campagne', campagneId);
-
       for (var map in response) {
         final donateurData = map['donateur'] as Map<String, dynamic>?;
         if (donateurData == null) continue;
-
         final idActeur = int.tryParse(donateurData['id_acteur'].toString()) ?? 0;
         if (uniqueDonateurs.containsKey(idActeur)) continue;
-
         final utilisateurData = donateurData['utilisateur'] as Map<String, dynamic>? ?? {};
         final idProfile = utilisateurData['id_profile'];
 
@@ -131,11 +133,13 @@ class _FeedPageState extends State<FeedPage> {
             'bio': profileData['bio'],
           },
         };
-
         uniqueDonateurs[idActeur] = Donateur.fromMap(donateurMap.cast<String, dynamic>());
       }
 
+
+
       return uniqueDonateurs.values.toList();
+
     } catch (e) {
       print('Error in fetchCampagneParticipants: $e');
       return [];
@@ -148,9 +152,9 @@ class _FeedPageState extends State<FeedPage> {
         .from('campagne_suivi')
         .select('id_utilisateur')
         .eq('id_campagne', campagneId);
-
     return response.map<int>((map) => int.tryParse(map['id_utilisateur'].toString()) ?? 0).toList();
   }
+
 
   Future<List<Like>> fetchCampagneLikes(int campagneId) async {
     final supabase = Supabase.instance.client;
@@ -158,7 +162,6 @@ class _FeedPageState extends State<FeedPage> {
         .from('like')
         .select('id_like, date_like, id_utilisateur')
         .eq('id_campagne', campagneId);
-
     return response.map((map) => Like.fromMap({
           ...map,
           'utilisateur': {
@@ -173,7 +176,6 @@ class _FeedPageState extends State<FeedPage> {
         .from('commentaire')
         .select('id_commentaire, contenu, date, id_acteur')
         .eq('id_campagne', campagneId);
-
     return response.map((map) => Commentaire.fromMap({
           ...map,
           'acteur': {
@@ -181,6 +183,8 @@ class _FeedPageState extends State<FeedPage> {
           }
         })).toList();
   }
+
+
 
   Future<void> _fetchData() async {
     setState(() {
@@ -210,25 +214,23 @@ class _FeedPageState extends State<FeedPage> {
 
       // Fetch posts using PostService
       final allPosts = await postService.getAllPosts();
-
       // Filter posts based on selected category
       _posts = allPosts.where((post) {
-        
         print('Post ${post.idPost} motsCles: ${post.motsCles}'); // Debug log
         print('Selected category: $_selectedCategory'); // Debug log
 
      // Exclude campaign-type posts
     if (post.typePost == TypePost.campagne) return false;
-  
+
     // Existing category filter
    if (_selectedCategory == null) return true;
    final matchesCategory = post.motsCles.contains(_selectedCategory);
    if (!allPosts.any((p) => p.motsCles.contains(_selectedCategory))) {
     return true;
    }
-        return matchesCategory;
-      }).toList();
+      return matchesCategory;
 
+      }).toList();
       print('Final posts: $_posts'); // Debug log
     } catch (e) {
       print('Error in _fetchData: $e');
@@ -241,6 +243,7 @@ class _FeedPageState extends State<FeedPage> {
       });
     }
   }
+
   Future<void> _submitDonation(
     Campagne campagne,
     String amount,
@@ -279,6 +282,7 @@ class _FeedPageState extends State<FeedPage> {
         SnackBar(content: Text('Erreur: ${e.toString()}')),
       );
     }
+
   }
 
   void _showDonationDialog(Campagne campagne) {
@@ -301,19 +305,24 @@ class _FeedPageState extends State<FeedPage> {
                   .single(),
               builder: (context, snapshot) {
                 return Text(
-                  'Donation to ${snapshot.hasData ? (snapshot.data as Map)['nom_association'] ?? 'Unknown' : '...'}',
+                  'Faire un don à ${snapshot.hasData ? (snapshot.data as Map)['nom_association'] ?? 'Unknown' : '...'} pour être parmi les participants',
                   style: const TextStyle(fontWeight: FontWeight.bold,fontSize: 20, color: LightAppPallete.primaryDark),
                   textAlign: TextAlign.center
                 );
+
               },
+
             ),
+            const SizedBox(height: 16),  
             Text(
               campagne.titre,
               style: const TextStyle(fontSize: 10, color: LightAppPallete.textSecondary),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 16), 
           ],
         ),
+
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -352,11 +361,12 @@ class _FeedPageState extends State<FeedPage> {
                 ],
               ),
               const SizedBox(height: 16), // Equal spacing
+
               TextField(
                 controller: cardController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Numéro de carte (16 chiffres)',
+                  labelText: 'Numéro de carte bancaire',
                   prefixIcon: Icon(Icons.credit_card),
                 ),
                 maxLength: 16,
@@ -398,35 +408,30 @@ class _FeedPageState extends State<FeedPage> {
               // Enhanced validation
               final expiryRegExp = RegExp(r'^(0[1-9]|1[0-2])\/?([0-9]{2})$');
               final cvvRegExp = RegExp(r'^[0-9]{3,4}$');
-
               if (cardController.text.length != 16) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Numéro de carte invalide')),
                 );
                 return;
               }
-
               if (!expiryRegExp.hasMatch(expiryController.text)) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Format expiration invalide (MM/AA)')),
                 );
                 return;
               }
-
               if (!cvvRegExp.hasMatch(cvvController.text)) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('CVV invalide (3-4 chiffres)')),
                 );
                 return;
               }
-
               if (amount <= 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Montant invalide')),
                 );
                 return;
               }
-
               // Submit donation logic
               await _submitDonation(
                 campagne,
@@ -445,35 +450,38 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildProfileHeader(),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSearchBar(),
-                          const SizedBox(height: 24),
-                          _buildSectionHeader("Campagnes en cours", true),
-                          const SizedBox(height: 16),
-                          _buildCampagnesSection(),
-                          const SizedBox(height: 24),
-                          _buildFeaturedPostsSection(),
-                        ],
+    return ThemeBackground(
+      isDarkMode: Theme.of(context).brightness == Brightness.dark,
+      child: Scaffold(
+        body: SafeArea(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildProfileHeader(),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSearchBar(),
+                            const SizedBox(height: 24),
+                            _buildSectionHeader("Campagnes en cours", true),
+                            const SizedBox(height: 16),
+                            _buildCampagnesSection(),
+                            const SizedBox(height: 24),
+                            _buildFeaturedPostsSection(),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -551,6 +559,7 @@ class _FeedPageState extends State<FeedPage> {
                         } else {
                           displayName = data['email']?.split('@')[0] ?? 'Utilisateur';
                         }
+
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -618,12 +627,15 @@ class _FeedPageState extends State<FeedPage> {
     );
   }
 
+
+
   Widget _buildSearchBar() {
     return GestureDetector(
       onTap: () {
         // TODO: Navigate to SearchPage
-        // Navigator.pushNamed(context, '/search');
+        // Navigator.pushNamed(context, '/search'); 
       },
+
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
@@ -650,8 +662,12 @@ class _FeedPageState extends State<FeedPage> {
     );
   }
 
+
+
   Widget _buildCampagnesSection() {
+
     if (_campagnes.isEmpty) {
+
       return const Center(
         child: Text(
           'Aucune campagne en cours',
@@ -659,6 +675,7 @@ class _FeedPageState extends State<FeedPage> {
         ),
       );
     }
+
     return SizedBox(
       height: 240,
       child: SingleChildScrollView(
@@ -676,6 +693,7 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Widget _buildFeaturedPostsSection() {
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -687,6 +705,8 @@ class _FeedPageState extends State<FeedPage> {
       ],
     );
   }
+
+
 
   Widget _buildCategoryChips() {
     final categories = MotCles.values.map((motCle) {
@@ -754,7 +774,6 @@ class _FeedPageState extends State<FeedPage> {
         ),
       );
     }
-
     return Column(
       children: _posts.map((post) {
         return PostCard(
@@ -770,7 +789,6 @@ class _FeedPageState extends State<FeedPage> {
       }).toList(),
     );
   }
-
   Widget _buildSectionHeader(String title, bool showViewAll) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -782,7 +800,7 @@ class _FeedPageState extends State<FeedPage> {
         if (showViewAll)
           GestureDetector(
             onTap: () {
-              // TODO: Navigate to AllPostsPage or AllCampagnesPage
+              // TODO: Navigate to AllPostsPage or   Navigator.pushNamed(context, '/AllCampagnesPage'); 
             },
             child: Row(
               children: [
@@ -827,12 +845,23 @@ class _FeedPageState extends State<FeedPage> {
           onTap: (index) {
             setState(() {
               _selectedIndex = index;
-              // TODO: Handle navigation
+              String nextRoute = '';
+              if (index == 0) {
+                Navigator.pushNamed(context, RouteGenerator.home);
+              } else if (index == 1) {
+                Navigator.pushNamed(context, RouteGenerator.profile);
+              } else if (index == 2) {
+                 Navigator.pushNamed(context, RouteGenerator.profile);
+              } else if (index == 3) {
+                 Navigator.pushNamed(context, RouteGenerator.profile);
+              } else if (index == 4) {
+                 Navigator.pushNamed(context, RouteGenerator.profile);
+              }
             });
           },
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
-          selectedItemColor: LightAppPallete.primary,
+          selectedItemColor: LightAppPallete.accentDark,
           unselectedItemColor: Colors.grey,
           showSelectedLabels: true,
           showUnselectedLabels: true,
@@ -842,16 +871,20 @@ class _FeedPageState extends State<FeedPage> {
               label: 'Accueil',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.format_list_bulleted),
-              label: 'Liste des Dons',
+              icon: Icon(Icons.search),
+              label: 'Rechercher',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.favorite_border),
-              label: 'Mes Dons',
+              icon: Icon(Icons.add_circle),
+              label: 'Créer',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: 'Compte',
+              icon: Icon(Icons.map_outlined),
+              label: 'Maps',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),

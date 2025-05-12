@@ -8,7 +8,11 @@ class CampagneCard extends StatefulWidget {
   final Campagne campagne;
   final VoidCallback onDonate;
 
-  const CampagneCard({super.key, required this.campagne, required this.onDonate});
+  const CampagneCard({
+    super.key,
+    required this.campagne,
+    required this.onDonate,
+  });
 
   @override
   _CampagneCardState createState() => _CampagneCardState();
@@ -109,315 +113,213 @@ class _CampagneCardState extends State<CampagneCard> {
         );
       },
       child: Container(
-        width: 280,
+        width: 250,
         margin: const EdgeInsets.only(right: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: LightAppPallete.backgroundAlt,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              blurRadius: 10,
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image with Type Badge
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                  child: CachedNetworkImage(
-                    imageUrl: widget.campagne.image ?? 'https://via.placeholder.com/280x160',
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      height: 160,
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      height: 160,
-                      color: Colors.grey[100],
-                      child: const Center(
-                        child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      widget.campagne.typeCampagne.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            // Content Section
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title
-                  Text(
-                    widget.campagne.titre,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  // Organization Name
-                  FutureBuilder(
-                    future: Supabase.instance.client
-                        .from('association')
-                        .select('nom_association')
-                        .eq('id_acteur', widget.campagne.idAssociation)
-                        .single(),
-                    builder: (context, snapshot) {
-                      String orgName = 'Chargement...';
-                      if (snapshot.hasData) {
-                        orgName = (snapshot.data as Map)['nom_association'] ?? 'Inconnu';
-                      } else if (snapshot.hasError) {
-                        orgName = 'Inconnu';
-                      }
-                      return Text(
-                        orgName,
-                        style: TextStyle(
-                          color: LightAppPallete.accentDark,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Engagement Metrics
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Likes
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.favorite,
-                            size: 18,
-                            color: const Color.fromARGB(255, 195, 12, 12),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${widget.campagne.likes.length}',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      
-                      // Comments
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.comment_outlined,
-                            size: 18,
-                            color: Colors.grey[700],
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${widget.campagne.commentaires.length}',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      
-                      // Participants
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.group_outlined,
-                            size: 18,
-                            color: Colors.grey[700],
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${widget.campagne.participants.length}',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Progress Section
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Objectif atteint',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          Text(
-                            '${widget.campagne.pourcentage.toStringAsFixed(1)}%',
-                            style: TextStyle(
-                              color: LightAppPallete.primary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: widget.campagne.pourcentage / 100,
-                          backgroundColor: Colors.grey[200],
-                          valueColor: AlwaysStoppedAnimation<Color>(LightAppPallete.primary),
-                          minHeight: 8,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Actions Section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Follow Button
-                      InkWell(
-                        onTap: _toggleFollow,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _isFollowing 
-                                ? Colors.grey[200] 
-                                : LightAppPallete.accentDark.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                _isFollowing ? Icons.check : Icons.add,
-                                size: 16,
-                                color: _isFollowing 
-                                    ? Colors.grey[700] 
-                                    : LightAppPallete.accentDark,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                _isFollowing ? 'Suivi' : 'Suivre',
-                                style: TextStyle(
-                                  color: _isFollowing 
-                                      ? Colors.grey[700] 
-                                      : LightAppPallete.accentDark,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      
-                      // Donate Button
-                      ElevatedButton(
-                        onPressed: widget.onDonate,
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          backgroundColor: LightAppPallete.primary,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Faire un don',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  // Rating Section  
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(5, (index) {
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => _submitRating(index + 1.0),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Icon(
-                              index < _userRating ? Icons.star_rounded : Icons.star_outline_rounded,
-                              color: Colors.amber,
-                              size: 24,
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildImageSection(),
+              _buildDetailsSection(),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildImageSection() {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          child: CachedNetworkImage(
+            imageUrl: widget.campagne.image ?? 'https://via.placeholder.com/250x120',
+            height: 120,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+            errorWidget: (context, url, error) => Image.asset(
+              'assets/images/placeholder.jpg',
+              height: 120,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              widget.campagne.typeCampagne.name,
+              style: const TextStyle(color: Colors.white, fontSize: 10),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailsSection() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTitleAndOrganization(),
+          const SizedBox(height: 8),
+          _buildStatsRow(),
+          const SizedBox(height: 4),
+          _buildParticipantsRow(),
+          const SizedBox(height: 4),
+          _buildProgressIndicator(),
+          const SizedBox(height: 8),
+          _buildActionsRow(),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: widget.onDonate,
+            child: const Text('Faire un don'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTitleAndOrganization() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.campagne.titre,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        FutureBuilder(
+          future: Supabase.instance.client
+              .from('association')
+              .select('nom_association')
+              .eq('id_acteur', widget.campagne.idAssociation)
+              .single(),
+          builder: (context, snapshot) {
+            String orgName = 'Inconnu';
+            if (snapshot.hasData) {
+              orgName = (snapshot.data as Map)['nom_association'] ?? 'Inconnu';
+            }
+            return Text(
+              orgName,
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.favorite, size: 16, color: const Color.fromARGB(255, 195, 12, 12)),
+            const SizedBox(width: 4),
+            Text(
+              '${widget.campagne.likes.length}',
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Icon(Icons.comment, size: 16, color: LightAppPallete.grey),
+            const SizedBox(width: 4),
+            Text(
+              '${widget.campagne.commentaires.length}',
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParticipantsRow() {
+    return Row(
+      children: [
+        Icon(Icons.group, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Text(
+          '${widget.campagne.participants.length} participants',
+          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressIndicator() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LinearProgressIndicator(
+          value: widget.campagne.pourcentage / 100,
+          backgroundColor: Colors.grey[300],
+          valueColor: AlwaysStoppedAnimation<Color>(LightAppPallete.accentLight),
+        ),
+        Text(
+          '${widget.campagne.pourcentage.toStringAsFixed(1)}% atteint',
+          style: TextStyle(color: Colors.grey[600], fontSize: 10),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionsRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: List.generate(5, (index) {
+            return IconButton(
+              icon: Icon(
+                index < _userRating ? Icons.star : Icons.star_border,
+                color: LightAppPallete.primary,
+                size: 16,
+              ),
+              onPressed: () {
+                _submitRating(index + 1.0);
+              },
+            );
+          }),
+        ),
+        ElevatedButton(
+          onPressed: _toggleFollow,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _isFollowing ? LightAppPallete.grey : LightAppPallete.primary,
+          ),
+          child: Text(_isFollowing ? 'Suivi' : 'Suivre'),
+        ),
+      ],
     );
   }
 }

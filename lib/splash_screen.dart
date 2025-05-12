@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:myapp/theme/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:myapp/routes/routes.dart';
 import 'package:myapp/theme/app_pallete.dart';
@@ -38,30 +39,32 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: LightAppPallete.primaryDark,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(
-              'assets/images/logo.png',
-              height: 200,
-              errorBuilder: (context, error, stackTrace) => Icon(
-                Icons.favorite,
-                size: 200,
-                color: LightAppPallete.background,
+    return ThemeBackground(
+      isDarkMode: Theme.of(context).brightness == Brightness.dark,
+      child: Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/images/logo.png',
+                height: 200,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.favorite,
+                  size: 200,
+                  color: LightAppPallete.background,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Mazal Kayen Elkhir',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: LightAppPallete.background,
-                    fontSize: 32,
-                  ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                'Mazal Kayen Elkhir',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: LightAppPallete.background,
+                      fontSize: 32,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/theme/theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:myapp/main.dart';
 import 'package:myapp/routes/routes.dart';
@@ -106,113 +107,116 @@ class _ConnexionState extends State<Connexion> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: LightAppPallete.primaryDark,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: MediaQuery.of(context).size.width > 600 ? 40 : 20,
-              vertical: 20,
-            ),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              decoration: BoxDecoration(
-                color: LightAppPallete.background,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+    return ThemeBackground(
+      isDarkMode: Theme.of(context).brightness == Brightness.dark,
+      child: Scaffold(
+        backgroundColor: Colors.transparent, // Transparent to show gradient
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.of(context).size.width > 600 ? 40 : 20,
+                vertical: 20,
               ),
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  children: [
-                    Image.asset(
-                      'assets/images/logo.png',
-                      height: 80,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.favorite,
-                        size: 80,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Se connecter',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Connectez-vous à Mazal Kayn Elkhir',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.email),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Email requis';
-                        } else if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
-                          return "Format d'email invalide";
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Mot de passe',
-                        prefixIcon: Icon(Icons.lock),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Mot de passe requis';
-                        } else if (value.length < 8) {
-                          return 'Le mot de passe doit avoir au moins 8 caractères';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, RouteGenerator.forgetPw);
-                        },
-                        child: const Text('Mot de passe oublié ?'),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _signIn,
-                        child: Text(_isLoading ? 'Connexion...' : 'Se connecter'),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(context, Inscription.route());
-                      },
-                      child: const Text('Pas de compte ? S\'inscrire'),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
+                decoration: BoxDecoration(
+                  color: LightAppPallete.background,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    children: [
+                      Image.asset(
+                        'assets/images/logo.png',
+                        height: 80,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          Icons.favorite,
+                          size: 80,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Se connecter',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Connectez-vous à Mazal Kayn Elkhir',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 24),
+                      TextFormField(
+                        controller: emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.email),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Email requis';
+                          } else if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
+                            return "Format d'email invalide";
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: passwordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Mot de passe',
+                          prefixIcon: Icon(Icons.lock),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Mot de passe requis';
+                          } else if (value.length < 8) {
+                            return 'Le mot de passe doit avoir au moins 8 caractères';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, RouteGenerator.forgetPw);
+                          },
+                          child: const Text('Mot de passe oublié ?'),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _signIn,
+                          child: Text(_isLoading ? 'Connexion...' : 'Se connecter'),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(context, Inscription.route());
+                        },
+                        child: const Text('Pas de compte ? S\'inscrire'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
