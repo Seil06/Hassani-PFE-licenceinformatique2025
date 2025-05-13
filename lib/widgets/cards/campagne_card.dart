@@ -196,8 +196,15 @@ class _CampagneCardState extends State<CampagneCard> {
           _buildActionsRow(),
           const SizedBox(height: 8),
           ElevatedButton(
-            onPressed: widget.onDonate,
-            child: const Text('Faire un don'),
+  onPressed: widget.onDonate,
+  style: TextButton.styleFrom(
+    backgroundColor: LightAppPallete.accentDark,
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+  ),
+  child: const Text(
+    'Faire un don',
+    style: TextStyle(color: Colors.white), // Ensures the text is visible
+  ),
           ),
         ],
       ),
@@ -283,7 +290,7 @@ class _CampagneCardState extends State<CampagneCard> {
       children: [
         LinearProgressIndicator(
           value: widget.campagne.pourcentage / 100,
-          backgroundColor: Colors.grey[300],
+          backgroundColor: const Color.fromARGB(255, 255, 235, 242),
           valueColor: AlwaysStoppedAnimation<Color>(LightAppPallete.accentLight),
         ),
         Text(
@@ -303,7 +310,7 @@ class _CampagneCardState extends State<CampagneCard> {
             return IconButton(
               icon: Icon(
                 index < _userRating ? Icons.star : Icons.star_border,
-                color: LightAppPallete.primary,
+                color: LightAppPallete.accent,
                 size: 16,
               ),
               onPressed: () {
@@ -315,7 +322,7 @@ class _CampagneCardState extends State<CampagneCard> {
         ElevatedButton(
           onPressed: _toggleFollow,
           style: ElevatedButton.styleFrom(
-            backgroundColor: _isFollowing ? LightAppPallete.grey : LightAppPallete.primary,
+            backgroundColor: _isFollowing ? LightAppPallete.grey : LightAppPallete.accent,
           ),
           child: Text(_isFollowing ? 'Suivi' : 'Suivre'),
         ),

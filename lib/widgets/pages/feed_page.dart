@@ -294,163 +294,171 @@ class _FeedPageState extends State<FeedPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Column(
-          children: [
-            FutureBuilder(
-              future: supabase
-                  .from('association')
-                  .select('nom_association')
-                  .eq('id_acteur', campagne.idAssociation)
-                  .single(),
-              builder: (context, snapshot) {
-                return Text(
-                  'Faire un don à ${snapshot.hasData ? (snapshot.data as Map)['nom_association'] ?? 'Unknown' : '...'} pour être parmi les participants',
-                  style: const TextStyle(fontWeight: FontWeight.bold,fontSize: 20, color: LightAppPallete.primaryDark),
-                  textAlign: TextAlign.center
-                );
-
-              },
-
-            ),
-            const SizedBox(height: 16),  
-            Text(
-              campagne.titre,
-              style: const TextStyle(fontSize: 10, color: LightAppPallete.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16), 
-          ],
+      builder: (context) => Theme(
+        data: Theme.of(context).copyWith(
+          dialogTheme: DialogThemeData(backgroundColor: const Color.fromARGB(255, 249, 209, 223)), 
         ),
-
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        child: AlertDialog(
+          title: Column(
             children: [
-              Image.asset('assets/images/transactions.png', height: 100),
+              FutureBuilder(
+                future: supabase
+                    .from('association')
+                    .select('nom_association')
+                    .eq('id_acteur', campagne.idAssociation)
+                    .single(),
+                builder: (context, snapshot) {
+                  return Text(
+                    'Faire un don à ${snapshot.hasData ? (snapshot.data as Map)['nom_association'] ?? 'Unknown' : '...'} pour être parmi les participants',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: LightAppPallete.accentDark),
+                    textAlign: TextAlign.center,
+                  );
+                },
+              ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.remove),
-                    onPressed: () {
-                      amount = amount > 0 ? amount - 100 : 0;
-                      amountController.text = amount.toString();
-                    },
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: amountController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Montant (DZD)',
-                        prefixIcon: Icon(Icons.attach_money_outlined),
-                      ),
-                      onChanged: (value) {
-                        amount = int.tryParse(value) ?? 0;
-                      },
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () {
-                      amount += 100;
-                      amountController.text = amount.toString();
-                    },
-                  ),
-                ],
+              Text(
+                campagne.titre,
+                style: const TextStyle(fontSize: 10, color: LightAppPallete.textSecondary),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 16), // Equal spacing
-
-              TextField(
-                controller: cardController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Numéro de carte bancaire',
-                  prefixIcon: Icon(Icons.credit_card),
-                ),
-                maxLength: 16,
-              ),
-              const SizedBox(height: 16), // Equal spacing
-              TextField(
-                controller: expiryController,
-                decoration: const InputDecoration(
-                  labelText: 'MM/AA',
-                  hintText: '12/25',
-                  prefixIcon: Icon(Icons.calendar_today),
-                ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(5),
-                  _CardExpiryFormatter(), // Custom formatter for MM/AA
-                ],
-              ),
-              const SizedBox(height: 16), // Equal spacing
-              TextField(
-                controller: cvvController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'CVV',
-                  prefixIcon: Icon(Icons.lock),
-                ),
-                maxLength: 3,
-              ),
+              const SizedBox(height: 16),
             ],
           ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset('assets/images/transactions.png', height: 100),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove),
+                      onPressed: () {
+                        amount = amount > 0 ? amount - 100 : 0;
+                        amountController.text = amount.toString();
+                      },
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: amountController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Montant (DZD)',
+                          prefixIcon: Icon(Icons.attach_money_outlined),
+                        ),
+                        onChanged: (value) {
+                          amount = int.tryParse(value) ?? 0;
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: () {
+                        amount += 100;
+                        amountController.text = amount.toString();
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16), // Equal spacing
+                TextField(
+                  controller: cardController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Numéro de carte bancaire',
+                    prefixIcon: Icon(Icons.credit_card),
+                  ),
+                  maxLength: 16,
+                ),
+                const SizedBox(height: 16), // Equal spacing
+                TextField(
+                  controller: expiryController,
+                  decoration: const InputDecoration(
+                    labelText: 'Date d\'expiration MM/AA',
+                    hintText: '12/25',
+                    prefixIcon: Icon(Icons.calendar_today),
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(5),
+                    _CardExpiryFormatter(), // Custom formatter for MM/AA
+                  ] ,
+                ),
+                const SizedBox(height: 16), // Equal spacing
+                TextField(
+                  controller: cvvController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'CVV',
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                  maxLength: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // Enhanced validation
+                final expiryRegExp = RegExp(r'^(0[1-9]|1[0-2])\/?([0-9]{2})$');
+                final cvvRegExp = RegExp(r'^[0-9]{3,4}$');
+                if (cardController.text.length != 16) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Numéro de carte invalide')),
+                  );
+                  return;
+                }
+                if (!expiryRegExp.hasMatch(expiryController.text)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Format expiration invalide (MM/AA)')),
+                  );
+                  return;
+                }
+                if (!cvvRegExp.hasMatch(cvvController.text)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('CVV invalide (3-4 chiffres)')),
+                  );
+                  return;
+                }
+                if (amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Montant invalide')),
+                  );
+                  return;
+                }
+                // Submit donation logic
+                await _submitDonation(
+                  campagne,
+                  amount.toString(),
+                  cardController.text,
+                  expiryController.text,
+                  cvvController.text,
+                );
+              },
+              style: TextButton.styleFrom(
+               backgroundColor: LightAppPallete.accentDark,
+               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), // Adjust padding
+               ),
+               child: const Text(
+              'Confirmer',
+               style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              // Enhanced validation
-              final expiryRegExp = RegExp(r'^(0[1-9]|1[0-2])\/?([0-9]{2})$');
-              final cvvRegExp = RegExp(r'^[0-9]{3,4}$');
-              if (cardController.text.length != 16) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Numéro de carte invalide')),
-                );
-                return;
-              }
-              if (!expiryRegExp.hasMatch(expiryController.text)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Format expiration invalide (MM/AA)')),
-                );
-                return;
-              }
-              if (!cvvRegExp.hasMatch(cvvController.text)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('CVV invalide (3-4 chiffres)')),
-                );
-                return;
-              }
-              if (amount <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Montant invalide')),
-                );
-                return;
-              }
-              // Submit donation logic
-              await _submitDonation(
-                campagne,
-                amount.toString(),
-                cardController.text,
-                expiryController.text,
-                cvvController.text,
-              );
-            },
-            child: const Text('Confirmer'),
-          ),
-        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return ThemeBackground(
+    return CustomThemeBackground(
       isDarkMode: Theme.of(context).brightness == Brightness.dark,
       child: Scaffold(
         body: SafeArea(
@@ -768,7 +776,7 @@ class _FeedPageState extends State<FeedPage> {
         ),
         child: const Center(
           child: Text(
-            'Aucune publication trouvée',
+            'Aucune publication trouvée pour le moment',
             style: TextStyle(color: Colors.grey),
           ),
         ),

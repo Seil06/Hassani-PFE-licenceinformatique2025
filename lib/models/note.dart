@@ -47,7 +47,7 @@ class Note {
   factory Note.fromMap(Map<String, dynamic> map) {
     return Note(
       idNote: map['id_note'],
-      note: map['note'],
+      note: (map['note'] as num?)?.toDouble() ?? 0.0,
       date: DateTime.parse(map['date']),
       raison: map['raison'],
       auteur: Utilisateur.fromMap(map['utilisateur_auteur']),

@@ -102,230 +102,193 @@ class _InscriptionState extends State<Inscription> {
     }
   }
 
-  Future<void> _pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-    );
+  Future<void> _signUp() async {
+  if (!formKey.currentState!.validate()) return;
 
-    if (result != null && result.files.isNotEmpty) {
-      setState(() {
-        _selectedFile = result.files.first;
-        _fileName = _selectedFile!.name;
-      });
-    }
+  // Validate file for association or beneficiaire
+  if (userType == 'association' && _selectedFile == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Veuillez sélectionner un document d\'autorisation'),
+        backgroundColor: LightAppPallete.error,
+      ),
+    );
+    return;
+  }
+  if (userType == 'bénéficiaire' && _selectedFile == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Veuillez sélectionner un document pour confirmer votre situation'),
+        backgroundColor: LightAppPallete.error,
+      ),
+    );
+    return;
   }
 
-  Future<void> _signUp() async {
-    if (!formKey.currentState!.validate()) return;
+  setState(() {
+    _isLoading = true;
+  });
 
-    // Validate file for association or beneficiaire
-    if (userType == 'association' && _selectedFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez sélectionner un document d\'autorisation'),
-          backgroundColor: LightAppPallete.error,
-        ),
-      );
-      return;
-    }
-    if (userType == 'bénéficiaire' && _selectedFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez sélectionner un document pour confirmer votre situation'),
-          backgroundColor: LightAppPallete.error,
-        ),
-      );
-      return;
-    }
+  try {
+    final email = emailController.text.trim().toLowerCase();
+    final password = passwordController.text.trim();
+    final hashedPassword = _hashPassword(password);
+    final numCarteIdentite = numCarteIdentiteController.text.trim().isEmpty
+        ? null
+        : numCarteIdentiteController.text.trim();
 
-    setState(() {
-      _isLoading = true;
+    // Step 1: Sign up with Supabase Auth
+    final authResponse = await supabase.auth.signUp(
+      email: email,
+      password: password,
+    );
+    final userId = authResponse.user!.id;
+
+    // Step 2: Create historique
+    final historiqueResponse = await supabase
+        .from('historique')
+        .insert({
+          'date': DateTime.now().toIso8601String(),
+          'action': 'Compte créé',
+          'details': 'Création d’un nouveau compte utilisateur',
+          'id_acteur': null, // Will be updated later
+        })
+        .select('id_historique')
+        .single();
+    final historiqueId = historiqueResponse['id_historique'] as int;
+
+    // Step 3: Create dashboard using id_historique
+    final dashboardResponse = await supabase
+        .from('dashboard')
+        .insert({
+          'id_historique': historiqueId,
+        })
+        .select('id_dashboard')
+        .single();
+    final dashboardId = dashboardResponse['id_dashboard'] as int;
+
+    // Step 4: Create profile using id_dashboard
+    final profileResponse = await supabase
+        .from('profile')
+        .insert({
+          'photo_url': null,
+          'bio': null,
+          'id_dashboard': dashboardId, // Now providing id_dashboard
+        })
+        .select('id_profile')
+        .single();
+    final profileId = profileResponse['id_profile'] as int;
+
+    // Step 5: Create acteur with supabase_user_id and id_profile
+    final acteurResponse = await supabase
+        .from('acteur')
+        .insert({
+          'type_acteur': 'utilisateur',
+          'email': email,
+          'mot_de_passe': hashedPassword,
+          'id_profile': profileId,
+          'note_moyenne': 0.0,
+          'supabase_user_id': userId,
+        })
+        .select('id_acteur')
+        .single();
+    final idActeur = acteurResponse['id_acteur'] as int;
+
+    // Step 6: Update historique with id_acteur
+    await supabase
+        .from('historique')
+        .update({'id_acteur': idActeur})
+        .eq('id_historique', historiqueId);
+
+    // Step 7: Insert into utilisateur table
+    await supabase.from('utilisateur').insert({
+      'id_acteur': idActeur,
+      'type_utilisateur': _normalizeUserType(userType),
+      'telephone': null,
+      'adresse_utilisateur': null,
+      'num_carte_identite': numCarteIdentite,
     });
 
-    try {
-      final email = emailController.text.trim().toLowerCase();
-      final password = passwordController.text.trim();
-      final hashedPassword = _hashPassword(password);
-      final numCarteIdentite = numCarteIdentiteController.text.trim().isEmpty
-          ? null
-          : numCarteIdentiteController.text.trim();
-
-      // Step 1: Sign up with Supabase Auth
-      final authResponse = await supabase.auth.signUp(
-        email: email,
-        password: password,
-      );
-
-      final userId = authResponse.user!.id;
-
-      // Step 2: Create profile
-      final profileResponse = await supabase
-          .from('profile')
-          .insert({
-            'photo_url': null,
-            'bio': null,
-          })
-          .select('id_profile')
-          .single();
-
-      final profileId = profileResponse['id_profile'] as int;
-
-      // Step 3: Create historique
-      final historiqueResponse = await supabase
-          .from('historique')
-          .insert({
-            'date': DateTime.now().toIso8601String(),
-            'action': 'Compte créé',
-            'details': 'Création d’un nouveau compte utilisateur',
-            'id_acteur': null,
-          })
-          .select('id_historique')
-          .single();
-
-      final historiqueId = historiqueResponse['id_historique'] as int;
-
-      // Step 4: Create dashboard
-      final dashboardResponse = await supabase
-          .from('dashboard')
-          .insert({
-            'id_historique': historiqueId,
-          })
-          .select('id_dashboard')
-          .single();
-
-      final dashboardId = dashboardResponse['id_dashboard'] as int;
-
-      // Step 5: Create acteur with supabase_user_id
-      final acteurResponse = await supabase
-          .from('acteur')
-          .insert({
-            'type_acteur': 'utilisateur',
-            'email': email,
-            'mot_de_passe': hashedPassword,
-            'id_profile': profileId,
-            'id_dashboard': dashboardId,
-            'note_moyenne': 0.0,
-            'supabase_user_id': userId,
-          })
-          .select('id_acteur')
-          .single();
-
-      final idActeur = acteurResponse['id_acteur'] as int;
-
-      // Step 6: Update historique with id_acteur
-      await supabase
-          .from('historique')
-          .update({'id_acteur': idActeur})
-          .eq('id_historique', historiqueId);
-
-      // Step 7: Insert into utilisateur table with normalized userType and num_carte_identite
-      await supabase.from('utilisateur').insert({
-        'id_acteur': idActeur,
-        'type_utilisateur': _normalizeUserType(userType),
-        'telephone': null,
-        'adresse': null,
-        'adresse_utilisateur': null, // Will be updated later if needed
-        'num_carte_identite': numCarteIdentite,
-      });
-
-      // Step 8: Insert into the appropriate user type table
-      String documentUrl = '';
-      if (_selectedFile != null) {
-        // Determine storage bucket based on user type
-        final bucket = userType == 'association' ? 'association-documents' : 'beneficiaire-documents';
-        final fileName = '${idActeur}_document_${userType}.${_fileName!.split('.').last}';
-
-        if (kIsWeb) {
-          // On web, use the bytes from PlatformFile
-          if (_selectedFile!.bytes != null) {
-            await supabase.storage
-                .from(bucket)
-                .uploadBinary(fileName, _selectedFile!.bytes!);
-          } else {
-            throw Exception('File bytes are not available');
-          }
-        } else {
-          // On mobile/desktop, use the File object to read bytes
-          final file = io.File(_selectedFile!.path!);
+    // Step 8: Handle file upload and specific user type insertion
+    String documentUrl = '';
+    if (_selectedFile != null) {
+      final bucket = userType == 'association' ? 'association-documents' : 'beneficiaire-documents';
+      final fileName = '${idActeur}_document_${userType}.${_fileName!.split('.').last}';
+      if (kIsWeb) {
+        if (_selectedFile!.bytes != null) {
           await supabase.storage
               .from(bucket)
-              .uploadBinary(fileName, await file.readAsBytes());
+              .uploadBinary(fileName, _selectedFile!.bytes!);
         }
-
-        // Get the public URL of the uploaded file
-        documentUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
+      } else {
+        final file = io.File(_selectedFile!.path!);
+        await supabase.storage
+            .from(bucket)
+            .uploadBinary(fileName, await file.readAsBytes());
       }
-
-      switch (userType) {
-        case 'donateur':
-          await supabase.from('donateur').insert({
-            'id_acteur': idActeur,
-            'nom': nomController.text.trim(),
-            'prenom': prenomController.text.trim(),
-          });
-          break;
-        case 'association':
-          await supabase.from('association').insert({
-            'id_acteur': idActeur,
-            'nom_association': nomAssociationController.text.trim(),
-            'document_authorisation': documentUrl,
-            'statut_validation': false,
-          });
-          break;
-        case 'bénéficiaire':
-          await supabase.from('beneficiaire').insert({
-            'id_acteur': idActeur,
-            'nom': nomController.text.trim(),
-            'prenom': prenomController.text.trim(),
-            'type_beneficiaire': typeBeneficiaire ?? 'autre',
-            'document_situation': documentUrl,
-          });
-          break;
-      }
-
-      // Step 9: Redirect to respective home pages
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inscription réussie ! Bienvenue !')),
-      );
-
-      String nextRoute = '/login'; // Default fallback
-      switch (userType) {
-        case 'donateur':
-          nextRoute = RouteGenerator.donateurHome;
-          break;
-        case 'association':
-          nextRoute = RouteGenerator.associationHome;
-          break;
-        case 'bénéficiaire':
-          nextRoute = RouteGenerator.beneficiaireHome;
-          break;
-      }
-      Navigator.pushReplacementNamed(context, nextRoute);
-    } catch (error) {
-      String errorMessage = 'Erreur : ${error.toString()}';
-      if (error is AuthException) {
-        if (error.message.contains('User already registered')) {
-          errorMessage = 'Cet email est déjà enregistré.';
-        } else {
-          errorMessage = error.message;
-        }
-      } else if (error.toString().contains('unique constraint') &&
-                 error.toString().contains('num_carte_identite')) {
-        errorMessage = 'Ce numéro de carte d\'identité est déjà utilisé.';
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: LightAppPallete.error,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      documentUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
     }
+
+    switch (userType) {
+      case 'donateur':
+        await supabase.from('donateur').insert({
+          'id_acteur': idActeur,
+          'nom': nomController.text.trim(),
+          'prenom': prenomController.text.trim(),
+        });
+        break;
+      case 'association':
+        await supabase.from('association').insert({
+          'id_acteur': idActeur,
+          'nom_association': nomAssociationController.text.trim(),
+          'document_authorisation': documentUrl,
+          'statut_validation': false,
+        });
+        break;
+      case 'bénéficiaire':
+        await supabase.from('beneficiaire').insert({
+          'id_acteur': idActeur,
+          'nom': nomController.text.trim(),
+          'prenom': prenomController.text.trim(),
+          'type_beneficiaire': typeBeneficiaire ?? 'autre',
+          'document_situation': documentUrl,
+        });
+        break;
+    }
+
+    // Step 9: Redirect
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Inscription réussie ! Bienvenue !')),
+    );
+    String nextRoute = userType == 'donateur'
+        ? RouteGenerator.donateurHome
+        : userType == 'association'
+            ? RouteGenerator.associationHome
+            : RouteGenerator.beneficiaireHome;
+    Navigator.pushReplacementNamed(context, nextRoute);
+  } catch (error) {
+    String errorMessage = 'Erreur : ${error.toString()}';
+    if (error is AuthException) {
+      errorMessage = error.message.contains('User already registered')
+          ? 'Cet email est déjà enregistré.'
+          : error.message;
+    } else if (error.toString().contains('unique constraint') &&
+        error.toString().contains('num_carte_identite')) {
+      errorMessage = 'Ce numéro de carte d\'identité est déjà utilisé.';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(errorMessage),
+        backgroundColor: LightAppPallete.error,
+      ),
+    );
+  } finally {
+    setState(() {
+      _isLoading = false;
+    });
   }
+}
+
 
   @override
   void dispose() {
@@ -594,7 +557,15 @@ class _InscriptionState extends State<Inscription> {
                               ),
                               const SizedBox(height: 12),
                               OutlinedButton.icon(
-                                onPressed: _pickFile,
+                                onPressed: () async {
+                                  final result = await FilePicker.platform.pickFiles();
+                                  if (result != null) {
+                                    setState(() {
+                                      _selectedFile = result.files.first;
+                                      _fileName = _selectedFile!.name;
+                                    });
+                                  }
+                                },
                                 icon: Icon(Icons.attach_file, size: 18),
                                 label: Text(_fileName == null ? 'Sélectionner un fichier' : 'Changer de fichier'),
                               ),

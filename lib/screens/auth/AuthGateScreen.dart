@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:myapp/main.dart';
 import 'package:myapp/routes/routes.dart';
 import 'package:myapp/theme/app_pallete.dart';
+import 'package:myapp/theme/theme.dart';
 
 class AuthGateScreen extends StatefulWidget {
   static route() => MaterialPageRoute(
@@ -80,13 +81,17 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: LightAppPallete.primaryDark,
+  return ThemeBackground(
+    isDarkMode: Theme.of(context).brightness == Brightness.dark,
+    child: Scaffold(
+      backgroundColor: Colors.transparent, // Transparent to show gradient
       body: const Center(
         child: CircularProgressIndicator(
-          color: LightAppPallete.background,
+          color: LightAppPallete.background, // Keep the spinner color
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 }

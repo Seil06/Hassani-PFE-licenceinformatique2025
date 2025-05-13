@@ -18,7 +18,7 @@ class ThemeBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedGradientBackground(
       primaryColors: isDarkMode
-          ? GradientPalette.darkPrimaryGradient
+     ? GradientPalette.darkPrimaryGradient
           : GradientPalette.lightPrimaryGradient,
       secondaryColors: isDarkMode
           ? GradientPalette.darkSecondaryGradient
@@ -28,6 +28,29 @@ class ThemeBackground extends StatelessWidget {
   }
 }
 
+class CustomThemeBackground extends StatelessWidget {
+  final Widget child;
+  final bool isDarkMode;
+
+  const CustomThemeBackground({
+    super.key,
+    required this.child,
+    required this.isDarkMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedGradientBackground(
+      primaryColors: isDarkMode
+          ? GradientPalette.darkSecondaryGradient
+          : GradientPalette.lightSecondaryGradient,
+          secondaryColors: isDarkMode
+          ? GradientPalette.darkPrimaryGradient
+          : GradientPalette.lightPrimaryGradient,
+      child: child,
+    );
+  }
+}
 class AppTheme {
   static _border(Color color, {double width = 2}) => OutlineInputBorder(
         borderSide: BorderSide(

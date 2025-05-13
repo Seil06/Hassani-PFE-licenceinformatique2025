@@ -102,14 +102,13 @@ class Post {
     return post;
   }
 
-  void calculateNoteMoyenne() {
-    if (notes.isEmpty) {
-      noteMoyenne = 0.0;
-      return;
-    }
-    final average = notes.map((note) => note.note).reduce((a, b) => a + b) / notes.length;
-    noteMoyenne = double.parse(average.toStringAsFixed(2));
-  }
+void calculateNoteMoyenne() {
+  if (notes.isEmpty) return;
+  _noteMoyenne = notes
+      .map((n) => n.note)
+      .reduce((a, b) => a + b)
+      .toDouble() / notes.length;
+}
 
   Post copyWith({
   int? idPost,

@@ -13,69 +13,89 @@ class PostService {
 
   PostService(this._supabase);
 
-  /// Récupère tous les posts avec leurs relations en une seule requête
+  // Récupère tous les posts avec leurs relations en une seule requête
   Future<List<Post>> getAllPosts() async {
     try {
       final response = await _supabase
           .from('post')
           .select('''
-              id_post, titre, description, type_post, image, date_limite, 
-              adresse_utilisateur, note_moyenne, id_acteur, id_don,
-              don!fk_don(*),
-              post_mot_cle!left(id_post, id_mot_cle, mot_cle(nom)),
-              note(*),
-              like(*),
-              commentaire(*),
-              post_utilisateur_tag!left(utilisateur!id_utilisateur(*))
-          ''').neq('type_post', 'campagne')
+            id_post, titre, description, type_post, image, date_limite, 
+            adresse_utilisateur, note_moyenne, id_acteur, id_don,
+            don(*),
+            post_mot_cle!left(id_post, id_mot_cle, mot_cle(nom)),
+            note(*),
+            like(*),
+            commentaire(*),
+            post_utilisateur_tag!left(utilisateur!id_utilisateur(*))
+        ''')
+          .neq('type_post', 'campagne')
           .order('id_post', ascending: false);
 
-      print('Raw post response from PostService: $response'); // Debug log
-
       return response.map<Post>((data) {
+        // Safely parse motsCles
         final motsClesData = data['post_mot_cle'] as List<dynamic>? ?? [];
         final motsCles = motsClesData
+            .where((mc) => mc != null && mc['mot_cle'] != null && mc['mot_cle']['nom'] != null)
             .map((mc) => MotCles.values.byName((mc['mot_cle']['nom'] as String?) ?? 'autre'))
-            .toList()
-                .toList();
-            if (motsCles.isEmpty) {
-              motsCles.add(MotCles.autre);
-            }
+            .toList();
+        if (motsCles.isEmpty) {
+          motsCles.add(MotCles.autre);
+        }
 
+        // Safely parse location data
         double? latitude;
         double? longitude;
         if (data['adresse_utilisateur'] != null) {
-          final coords = GeoUtils.parsePoint(data['adresse_utilisateur']);
-          latitude = coords['latitude'];
-          longitude = coords['longitude'];
+          try {
+            final coords = GeoUtils.parsePoint(data['adresse_utilisateur']);
+            latitude = coords['latitude'];
+            longitude = coords['longitude'];
+          } catch (e) {
+            print('Error parsing location: $e');
+          }
         }
 
+        // Safely parse related collections
         final notes = (data['note'] as List<dynamic>? ?? [])
+            .where((note) => note != null)
             .map((note) => Note.fromMap(note))
             .toList();
 
         final likes = (data['like'] as List<dynamic>? ?? [])
+            .where((like) => like != null)
             .map((like) => Like.fromMap(like))
             .toList();
 
         final commentaires = (data['commentaire'] as List<dynamic>? ?? [])
+            .where((comment) => comment != null)
             .map((comment) => Commentaire.fromMap(comment))
             .toList();
 
+        // Safely parse utilisateursTaguer
         final utilisateursTaguer = (data['post_utilisateur_tag'] as List<dynamic>? ?? [])
-            .map((tag) => Utilisateur.fromMap(tag['utilisateur']))
+            .where((tag) => tag != null && tag['utilisateur'] != null)
+            .map((tag) => Utilisateur.fromMap(tag['utilisateur'] as Map<String, dynamic>))
             .toList();
 
+        // Safely handle don data
+        Don? donData;
+        if (data['id_don'] != null && data['don'] != null) {
+          try {
+            donData = Don.fromMap(data['don']);
+          } catch (e) {
+            print('Error parsing don data: $e');
+          }
+        }
+
+        // Create post with parsed data
         final post = Post(
           idPost: int.tryParse(data['id_post'].toString()) ?? 0,
           titre: data['titre']?.toString() ?? 'Titre inconnu',
           description: data['description']?.toString() ?? '',
-          typePost: TypePost.values.byName(data['type_post']),
-          typeDon: data['id_don'] != null && data['don'] != null && data['don']['type_don'] != null
-              ? TypeDon.values.byName(data['don']['type_don'])
-              : null,
+          typePost: TypePost.values.byName(data['type_post'] ?? 'autre'),
+          typeDon: donData?.typeDon,
           image: data['image']?.toString(),
-          lieuActeur: '', // Adjust if lieu_acteur is stored elsewhere
+          lieuActeur: '',
           dateLimite: data['date_limite'] != null
               ? DateTime.tryParse(data['date_limite'].toString())
               : null,
@@ -86,10 +106,12 @@ class PostService {
           commentaires: commentaires,
           utilisateursTaguer: utilisateursTaguer,
           motsCles: motsCles,
-          idActeur: int.tryParse(data['id_acteur'].toString()) ?? 0,
-          don: data['id_don'] != null && data['don'] != null ? Don.fromMap(data['don']) : null,
+          idActeur: int.tryParse(data['id_acteur']?.toString() ?? '0') ?? 0,
+          don: donData,
         );
 
+        // Set note moyenne
+        post.noteMoyenne = (data['note_moyenne'] as num?)?.toDouble() ?? 0.0;
         post.calculateNoteMoyenne();
         return post;
       }).toList();
@@ -146,9 +168,10 @@ class PostService {
           .map((comment) => Commentaire.fromMap(comment))
           .toList();
 
-      final utilisateursTaguer = (response['post_utilisateur_tag'] as List<dynamic>? ?? [])
-          .map((tag) => Utilisateur.fromMap(tag['utilisateur']))
-          .toList();
+   final utilisateursTaguer = (response['post_utilisateur_tag'] as List<dynamic>? ?? [])
+    .where((tag) => tag['utilisateur'] != null) // Filtrer les tags sans utilisateur
+    .map((tag) => Utilisateur.fromMap(tag['utilisateur'] as Map<String, dynamic>))
+    .toList();
 
       final post = Post(
         idPost: int.tryParse(response['id_post'].toString()) ?? 0,
@@ -230,9 +253,10 @@ class PostService {
             .map((comment) => Commentaire.fromMap(comment))
             .toList();
 
-        final utilisateursTaguer = (data['post_utilisateur_tag'] as List<dynamic>? ?? [])
-            .map((tag) => Utilisateur.fromMap(tag['utilisateur']))
-            .toList();
+    final utilisateursTaguer = (data['post_utilisateur_tag'] as List<dynamic>? ?? [])
+    .where((tag) => tag['utilisateur'] != null) // Filtrer les tags sans utilisateur
+    .map((tag) => Utilisateur.fromMap(tag['utilisateur'] as Map<String, dynamic>))
+    .toList();
 
         final post = Post(
           idPost: int.tryParse(data['id_post'].toString()) ?? 0,

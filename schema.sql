@@ -1184,3 +1184,9 @@ CREATE TRIGGER trg_validate_card_expiration
 BEFORE INSERT OR UPDATE ON don
 FOR EACH ROW
 EXECUTE FUNCTION validate_card_expiration();
+
+INSERT INTO don (id_don, num_carte_bancaire, montant, date_don, type_don, etat_don, id_donateur, id_campagne)
+VALUES (1, '1234567890123456', 10000.0, NOW(), 'financier', 'valide', 4, 4);
+
+ALTER TABLE post 
+ALTER COLUMN note_moyenne TYPE double precision;
