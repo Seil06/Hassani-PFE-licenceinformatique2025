@@ -60,8 +60,6 @@ class _FeedPageState extends State<FeedPage> {
     }
   }
 
-
-
   Future<int?> _getCurrentDonorId() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -70,11 +68,12 @@ class _FeedPageState extends State<FeedPage> {
           .from('acteur')
           .select('''
           id_acteur,
-          utilisateur!inner(type_utilisateur)
+          utilisateur(type_utilisateur)
         ''')
           .eq('supabase_user_id', user.id)
-          .eq('utilisateur.type_utilisateur', 'donateur')
-          .single();
+          .maybeSingle(); // Use maybeSingle
+
+      if (response == null) return null;
       return response['id_acteur'] as int?;
     } catch (e) {
       print('Error getting donor ID: $e');
@@ -86,65 +85,64 @@ class _FeedPageState extends State<FeedPage> {
 
 
   Future<List<Donateur>> fetchCampagneParticipants(int campagneId) async {
-    final supabase = Supabase.instance.client;
-    final uniqueDonateurs = <int, Donateur>{};
+  final supabase = Supabase.instance.client;
+  final uniqueDonateurs = <int, Donateur>{};
 
-    try {
-      final response = await supabase
-          .from('don')
-          .select('''
-              donateur!id_donateur(
-                id_acteur, nom, prenom, 
-                utilisateur!id_acteur(id_profile, email, telephone, adresse_utilisateur)
+  try {
+    final response = await supabase
+        .from('don')
+        .select('''
+          donateur!id_donateur(
+            id_acteur, nom, prenom,
+            utilisateur!id_acteur(
+              telephone, adresse_utilisateur,
+              acteur!id_acteur(
+                email, id_profile,
+                profile!id_profile(photo_url, bio)
               )
-          ''')
-          .eq('id_campagne', campagneId);
-      for (var map in response) {
-        final donateurData = map['donateur'] as Map<String, dynamic>?;
-        if (donateurData == null) continue;
-        final idActeur = int.tryParse(donateurData['id_acteur'].toString()) ?? 0;
-        if (uniqueDonateurs.containsKey(idActeur)) continue;
-        final utilisateurData = donateurData['utilisateur'] as Map<String, dynamic>? ?? {};
-        final idProfile = utilisateurData['id_profile'];
+            )
+          )
+        ''')
+        .eq('id_campagne', campagneId);
 
-        Map<String, dynamic> profileData = {};
-        if (idProfile != null) {
-          final profileResponse = await supabase
-              .from('profile')
-              .select('photo_url, bio')
-              .eq('id_profile', idProfile)
-              .maybeSingle();
+    for (var map in response) {
+      final donateurData = map['donateur'] as Map<String, dynamic>? ?? {};
+      if (donateurData.isEmpty) continue;
 
-          if (profileResponse != null) {
-            profileData = profileResponse;
-          }
-        }
+      // Defensive: Only parse id_acteur if present and not null
+      final idActeurRaw = donateurData['id_acteur'];
+      if (idActeurRaw == null) continue; // skip if null!
+      final idActeur = int.tryParse(idActeurRaw.toString());
+      if (idActeur == null) continue; // skip if cannot parse
 
-        final donateurMap = {
-          'id_acteur': idActeur,
-          'nom': donateurData['nom'],
-          'prenom': donateurData['prenom'],
-          'email': utilisateurData['email'],
-          'telephone': utilisateurData['telephone'],
-          'adresse_utilisateur': utilisateurData['adresse_utilisateur'],
-          'profile': {
-            'id_profile': idProfile,
-            'photo_url': profileData['photo_url'],
-            'bio': profileData['bio'],
-          },
-        };
-        uniqueDonateurs[idActeur] = Donateur.fromMap(donateurMap.cast<String, dynamic>());
-      }
+      if (uniqueDonateurs.containsKey(idActeur)) continue;
 
+      final utilisateurData = donateurData['utilisateur'] as Map<String, dynamic>? ?? {};
+      final acteurData = utilisateurData['acteur'] as Map<String, dynamic>? ?? {};
+      final profileData = acteurData['profile'] as Map<String, dynamic>? ?? {};
 
-
-      return uniqueDonateurs.values.toList();
-
-    } catch (e) {
-      print('Error in fetchCampagneParticipants: $e');
-      return [];
+      final donateurMap = {
+        'id_acteur': idActeur,
+        'nom': donateurData['nom']?.toString() ?? 'Unknown',
+        'prenom': donateurData['prenom']?.toString() ?? 'Unknown',
+        'email': acteurData['email']?.toString() ?? '',
+        'telephone': utilisateurData['telephone']?.toString() ?? '',
+        'adresse_utilisateur': utilisateurData['adresse_utilisateur']?.toString() ?? '',
+        'profile': {
+          'id_profile': acteurData['id_profile'],
+          'photo_url': profileData['photo_url']?.toString() ?? '',
+          'bio': profileData['bio']?.toString() ?? '',
+        },
+      };
+      uniqueDonateurs[idActeur] = Donateur.fromMap(donateurMap.cast<String, dynamic>());
     }
+
+    return uniqueDonateurs.values.toList();
+  } catch (e) {
+    print('Error in fetchCampagneParticipants: $e');
+    return [];
   }
+}
 
   Future<List<int>> fetchCampagneFollowers(int campagneId) async {
     final supabase = Supabase.instance.client;

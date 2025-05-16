@@ -1190,3 +1190,12 @@ VALUES (1, '1234567890123456', 10000.0, NOW(), 'financier', 'valide', 4, 4);
 
 ALTER TABLE post 
 ALTER COLUMN note_moyenne TYPE double precision;
+
+CREATE POLICY "Allow all" ON public.post 
+FOR SELECT 
+USING (true);
+
+CREATE POLICY "Enable read access" ON public.campagne 
+AS PERMISSIVE FOR SELECT
+TO public
+USING (true);

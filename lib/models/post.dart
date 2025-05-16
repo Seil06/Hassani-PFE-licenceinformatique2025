@@ -96,7 +96,7 @@ class Post {
           : null,
       motsCles: [], // Load via separate query
       idActeur: map['id_acteur'],
-      don: map['id_don'] != null ? Don.fromMap(map['don']) : null,
+      don: (map.containsKey('don') && map['don'] != null) ? Don.fromMap(map['don']) : null, // Safe don parsing
     );
     post._noteMoyenne = map['note_moyenne'] ?? 0.0;
     return post;
@@ -147,7 +147,7 @@ void calculateNoteMoyenne() {
     motsCles: motsCles ?? this.motsCles,
     idActeur: idActeur ?? this.idActeur,
     don: don ?? this.don,
-  ).._noteMoyenne = this._noteMoyenne;
+  ).._noteMoyenne = _noteMoyenne;
 }
 
  bool get isCampagne => typePost == TypePost.campagne;

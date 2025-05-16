@@ -21,7 +21,7 @@ class PostService {
           .select('''
             id_post, titre, description, type_post, image, date_limite, 
             adresse_utilisateur, note_moyenne, id_acteur, id_don,
-            don(*),
+            don!fk_don(*),
             post_mot_cle!left(id_post, id_mot_cle, mot_cle(nom)),
             note(*),
             like(*),
@@ -32,11 +32,17 @@ class PostService {
           .order('id_post', ascending: false);
 
       return response.map<Post>((data) {
+        if (data == null) {
+          throw Exception('Post data is null');
+        }
+
         // Safely parse motsCles
         final motsClesData = data['post_mot_cle'] as List<dynamic>? ?? [];
         final motsCles = motsClesData
-            .where((mc) => mc != null && mc['mot_cle'] != null && mc['mot_cle']['nom'] != null)
-            .map((mc) => MotCles.values.byName((mc['mot_cle']['nom'] as String?) ?? 'autre'))
+            .where((mc) => mc != null)
+            .map((mc) => (mc['mot_cle'] as Map<String, dynamic>?)?['nom'] as String)
+            .whereType<String>() // Only non-null strings
+            .map((nom) => MotCles.values.byName(nom))
             .toList();
         if (motsCles.isEmpty) {
           motsCles.add(MotCles.autre);
@@ -79,7 +85,7 @@ class PostService {
 
         // Safely handle don data
         Don? donData;
-        if (data['id_don'] != null && data['don'] != null) {
+        if (data.containsKey('don') && data['don'] != null) {
           try {
             donData = Don.fromMap(data['don']);
           } catch (e) {
@@ -141,7 +147,10 @@ class PostService {
 
       final motsClesData = response['post_mot_cle'] as List<dynamic>? ?? [];
       final motsCles = motsClesData
-          .map((mc) => MotCles.values.byName((mc['mot_cle']['nom'] as String?) ?? 'autre'))
+          .where((mc) => mc != null)
+          .map((mc) => (mc['mot_cle'] as Map<String, dynamic>?)?['nom'])
+          .whereType<String>() // Only non-null strings
+          .map((nom) => MotCles.values.byName(nom))
           .toList()
               .toList();
           if (motsCles.isEmpty) {
@@ -224,9 +233,15 @@ class PostService {
           .order('id_post', ascending: false);
 
       return response.map<Post>((data) {
+        if (data == null) {
+          throw Exception('Post data is null');
+        }
         final motsClesData = data['post_mot_cle'] as List<dynamic>? ?? [];
         final motsCles = motsClesData
-            .map((mc) => MotCles.values.byName((mc['mot_cle']['nom'] as String?) ?? 'autre'))
+            .where((mc) => mc != null)
+            .map((mc) => (mc['mot_cle'] as Map<String, dynamic>?)?['nom'])
+            .whereType<String>() // Only non-null strings
+            .map((nom) => MotCles.values.byName(nom))
             .toList()
                 .toList();
             if (motsCles.isEmpty) {
@@ -242,15 +257,18 @@ class PostService {
         }
 
         final notes = (data['note'] as List<dynamic>? ?? [])
-            .map((note) => Note.fromMap(note))
+            .where((note) => note != null)
+            .map((note) => Note.fromMap(note as Map<String, dynamic>))
             .toList();
 
         final likes = (data['like'] as List<dynamic>? ?? [])
-            .map((like) => Like.fromMap(like))
+            .where((like) => like != null)
+            .map((like) => Like.fromMap(like as Map<String, dynamic>))
             .toList();
 
         final commentaires = (data['commentaire'] as List<dynamic>? ?? [])
-            .map((comment) => Commentaire.fromMap(comment))
+            .where((comment) => comment != null)
+            .map((comment) => Commentaire.fromMap(comment as Map<String, dynamic>))
             .toList();
 
     final utilisateursTaguer = (data['post_utilisateur_tag'] as List<dynamic>? ?? [])

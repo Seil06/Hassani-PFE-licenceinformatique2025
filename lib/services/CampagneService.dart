@@ -397,14 +397,26 @@ class CampagneService {
     try {
       final response = await _client
           .from('don')
-          .select('donateur!id_donateur(id_acteur)')
+          .select('''
+              donateur!id_donateur(
+                id_acteur,
+                utilisateur!id_acteur(
+                  acteur!id_acteur(id_profile)
+                )
+              )
+          ''')
           .eq('id_campagne', campaignId);
 
       if (response.isEmpty) {
-        throw Exception('Failed to fetch campaign participants');
+        throw Exception('No participants found for the campaign');
       }
 
-      return List<int>.from(response.map((item) => item['donateur']['id_acteur'] as int));
+      return response.map<int>((item) {
+        final donateurData = item['donateur'] as Map<String, dynamic>? ?? {};
+        final utilisateurData = donateurData['utilisateur'] as Map<String, dynamic>? ?? {};
+        final acteurData = utilisateurData['acteur'] as Map<String, dynamic>? ?? {};
+        return acteurData['id_profile'] as int;
+      }).toList();
     } catch (e) {
       print('Error fetching campaign participants: $e');
       throw Exception('Failed to fetch campaign participants: $e');

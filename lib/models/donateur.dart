@@ -5,7 +5,6 @@ import 'package:myapp/models/don.dart';
 import 'package:myapp/models/historique.dart';
 import 'package:myapp/models/message.dart';
 import 'package:myapp/models/notification.dart';
-import 'package:myapp/models/utils.dart';
 import 'package:myapp/models/utilisateur.dart';
 import 'package:myapp/models/post.dart';
 import 'package:myapp/models/zakat.dart';
@@ -56,29 +55,36 @@ class Donateur extends Utilisateur {
   }
 
   factory Donateur.fromMap(Map<String, dynamic> map) {
+    final id = map['id_acteur'];
+    final nom = map['nom']?.toString() ?? 'Unknown';
+    final prenom = map['prenom']?.toString() ?? 'Unknown';
+
+    final utilisateur = map['utilisateur'] as Map<String, dynamic>?;
+    final telephone = utilisateur?['telephone']?.toString();
+    final adresse = utilisateur?['adresse_utilisateur']?.toString();
+
+    final acteur = utilisateur?['acteur'] as Map<String, dynamic>?;
+    final email = acteur?['email']?.toString();
+    final idProfile = acteur?['id_profile'];
+    final profileMap = acteur?['profile'] as Map<String, dynamic>? ?? {};
+
     return Donateur(
-      id: map['id_acteur'],
-      nom: map['nom'],
-      prenom: map['prenom'],
-      email: map['utilisateur'] != null ? map['utilisateur']['email'] : map['email'],
-      motDePasse: map['utilisateur'] != null ? map['utilisateur']['mot_de_passe'] ?? '********' : map['mot_de_passe'],
-      telephone: map['utilisateur'] != null ? map['utilisateur']['telephone'] : map['telephone'],
-      adresse: map['utilisateur'] != null ? map['utilisateur']['adresse'] : map['adresse'],
-      latitude: map['utilisateur'] != null && map['utilisateur']['location'] != null
-          ? GeoUtils.parsePoint(map['utilisateur']['location'])['latitude']
-          : map['location'] != null
-              ? GeoUtils.parsePoint(map['location'])['latitude']
-              : null,
-      longitude: map['utilisateur'] != null && map['utilisateur']['location'] != null
-          ? GeoUtils.parsePoint(map['utilisateur']['location'])['longitude']
-          : map['location'] != null
-              ? GeoUtils.parsePoint(map['location'])['longitude']
-              : null,
-      profile: Profile.fromMap(map['acteur'] != null ? map['acteur']['profile'] : map['profile']),
-      dashboard: Dashboard.fromMap(map['dashboard'] ?? {}),
-      dons: map['dons'] != null ? (map['dons'] as List).map((don) => Don.fromMap(don)).toList() : [],
-      zakats: [], // Load via separate query
-      numCarteIdentite: map['num_carte_identite'],
+      id: id,
+      nom: nom,
+      prenom: prenom,
+      email: email ?? '',
+      motDePasse: '********',
+      telephone: telephone ?? '',
+      adresse: adresse ?? '',
+      latitude: null,
+      longitude: null,
+      profile: Profile.fromMap({
+        'id_profile': idProfile,
+        'photo_url': profileMap['photo_url']?.toString() ?? '',
+        'bio': profileMap['bio']?.toString() ?? '',
+      }),
+      dashboard: Dashboard.empty(),
+      numCarteIdentite: '',
     );
   }
 

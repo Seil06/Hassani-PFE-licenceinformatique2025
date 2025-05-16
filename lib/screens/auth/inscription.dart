@@ -35,6 +35,7 @@ class _InscriptionState extends State<Inscription> {
   bool _isLoading = false;
   PlatformFile? _selectedFile; // Store the selected file information (for association or beneficiaire)
   String? _fileName; // Store the selected file name for display
+  bool _fileError = false; // Track file selection error
 
   // List of options for type_beneficiaire dropdown (matches schema)
   final List<String> beneficiaireTypes = [
@@ -106,23 +107,15 @@ class _InscriptionState extends State<Inscription> {
   if (!formKey.currentState!.validate()) return;
 
   // Validate file for association or beneficiaire
-  if (userType == 'association' && _selectedFile == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Veuillez sélectionner un document d\'autorisation'),
-        backgroundColor: LightAppPallete.error,
-      ),
-    );
+  if ((userType == 'association' || userType == 'bénéficiaire') && _selectedFile == null) {
+    setState(() {
+      _fileError = true;
+    });
     return;
-  }
-  if (userType == 'bénéficiaire' && _selectedFile == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Veuillez sélectionner un document pour confirmer votre situation'),
-        backgroundColor: LightAppPallete.error,
-      ),
-    );
-    return;
+  } else {
+    setState(() {
+      _fileError = false;
+    });
   }
 
   setState(() {
@@ -133,11 +126,19 @@ class _InscriptionState extends State<Inscription> {
     final email = emailController.text.trim().toLowerCase();
     final password = passwordController.text.trim();
     final hashedPassword = _hashPassword(password);
-    final numCarteIdentite = numCarteIdentiteController.text.trim().isEmpty
-        ? null
-        : numCarteIdentiteController.text.trim();
 
-    // Step 1: Sign up with Supabase Auth
+    // Carte d'identité: required for donateur/bénéficiaire, null for association
+    String? numCarteIdentite;
+    if (userType == 'donateur' || userType == 'bénéficiaire') {
+      if (numCarteIdentiteController.text.trim().isEmpty || numCarteIdentiteController.text.trim().length != 18) {
+        throw Exception('Le numéro de carte d\'identité doit comporter exactement 18 caractères.');
+      }
+      numCarteIdentite = numCarteIdentiteController.text.trim();
+    } else {
+      numCarteIdentite = null;
+    }
+
+    // Step 1: Sign up with Supabase Auth (use plain password)
     final authResponse = await supabase.auth.signUp(
       email: email,
       password: password,
@@ -151,35 +152,33 @@ class _InscriptionState extends State<Inscription> {
           'date': DateTime.now().toIso8601String(),
           'action': 'Compte créé',
           'details': 'Création d’un nouveau compte utilisateur',
-          'id_acteur': null, // Will be updated later
+          'id_acteur': null,
         })
         .select('id_historique')
         .single();
     final historiqueId = historiqueResponse['id_historique'] as int;
 
-    // Step 3: Create dashboard using id_historique
+    // Step 3: Create dashboard
     final dashboardResponse = await supabase
         .from('dashboard')
-        .insert({
-          'id_historique': historiqueId,
-        })
+        .insert({'id_historique': historiqueId})
         .select('id_dashboard')
         .single();
     final dashboardId = dashboardResponse['id_dashboard'] as int;
 
-    // Step 4: Create profile using id_dashboard
+    // Step 4: Create profile
     final profileResponse = await supabase
         .from('profile')
         .insert({
           'photo_url': null,
           'bio': null,
-          'id_dashboard': dashboardId, // Now providing id_dashboard
+          'id_dashboard': dashboardId,
         })
         .select('id_profile')
         .single();
     final profileId = profileResponse['id_profile'] as int;
 
-    // Step 5: Create acteur with supabase_user_id and id_profile
+    // Step 5: Create acteur
     final acteurResponse = await supabase
         .from('acteur')
         .insert({
@@ -200,17 +199,17 @@ class _InscriptionState extends State<Inscription> {
         .update({'id_acteur': idActeur})
         .eq('id_historique', historiqueId);
 
-    // Step 7: Insert into utilisateur table
+    // Step 7: Insert into utilisateur
     await supabase.from('utilisateur').insert({
       'id_acteur': idActeur,
-      'type_utilisateur': _normalizeUserType(userType),
+      'type_utilisateur': _normalizeUserType(userType), // donateur, association, beneficiaire
       'telephone': null,
       'adresse_utilisateur': null,
       'num_carte_identite': numCarteIdentite,
     });
 
     // Step 8: Handle file upload and specific user type insertion
-    String documentUrl = '';
+    String? documentUrl;
     if (_selectedFile != null) {
       final bucket = userType == 'association' ? 'association-documents' : 'beneficiaire-documents';
       final fileName = '${idActeur}_document_${userType}.${_fileName!.split('.').last}';
@@ -275,6 +274,8 @@ class _InscriptionState extends State<Inscription> {
     } else if (error.toString().contains('unique constraint') &&
         error.toString().contains('num_carte_identite')) {
       errorMessage = 'Ce numéro de carte d\'identité est déjà utilisé.';
+    } else if (error.toString().contains('num_carte_identite')) {
+      errorMessage = 'Le numéro de carte d\'identité doit comporter exactement 18 caractères.';
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -446,7 +447,10 @@ class _InscriptionState extends State<Inscription> {
                           prefixIcon: Icon(Icons.card_membership),
                         ),
                         validator: (value) {
-                          if (value != null && value.isNotEmpty && value.length != 18) {
+                          if (value == null || value.isEmpty) {
+                            return 'Le numéro de carte d\'identité est requis';
+                          }
+                          if (value.length != 18) {
                             return 'Le numéro doit avoir exactement 18 caractères';
                           }
                           return null;
@@ -563,6 +567,7 @@ class _InscriptionState extends State<Inscription> {
                                     setState(() {
                                       _selectedFile = result.files.first;
                                       _fileName = _selectedFile!.name;
+                                      _fileError = false; // Reset error when file is picked
                                     });
                                   }
                                 },
@@ -572,6 +577,16 @@ class _InscriptionState extends State<Inscription> {
                             ],
                           ),
                         ),
+                        if (_fileError)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              userType == 'association'
+                                  ? 'Document d\'autorisation requis'
+                                  : 'Document de situation requis',
+                              style: const TextStyle(color: Colors.red, fontSize: 13),
+                            ),
+                          ),
                         const SizedBox(height: 16),
                       ],
                       SizedBox(
