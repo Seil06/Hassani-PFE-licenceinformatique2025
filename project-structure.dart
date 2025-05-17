@@ -36,7 +36,7 @@
 // │   │   ├── association/
 // │   │   │   ├── association_home.dart // Association home screen
 // │   │   │   ├── association_profile.dart // Association profile screen
-// │   │   │   ├── Gestion_campagne.dart  //create new cmapagnes, update darft cmapagnes or alreday published ones, delete campaigns or dtafted ones
+// │   │   │   ├── Gestion_campagne.dart  //create new cmapagnes, update darft cmapagnes or alredy published ones, delete campaigns or dtafted ones
 // │   │   │   └── profile_association.dart // Association profile screen
 // │   │   ├── beneficiaire/
 // │   │   │   ├── beneficiaire_home.dart // Beneficiary home screen
@@ -49,12 +49,7 @@
 // │   │       ├── calculateur_zakat_screen.dart //doanetur clacluer leur montant de zakat et choix de faire directemnt lenvoie de montant a une association ou un beneficiaire ou non pas d'envoie!
 // │   │       ├── Gestion_post.dart // Create post invite ou Offre, update post, delete post invite no possibility to add payment methods since, possibility to add utilidateur taguer when create the post (see the schema.sql)
 // │   │       └── profile_donateur.dart // Donor profile screen
-// │   |
-// │   └── shared/  // Shared screens across user types
-// │           ├── campagne_page.dart  // Campaign details page of feed : display all the comments, likes, all list of participants (who already clicked the button donate if it's a finance campaign/ button participate if the campaign type doesn't equal financier)
-// │           ├── research_page.dart  // Search page for posts, campaigns, and users
-// │           ├── map_page.dart      // page to display 2 blocks of maps cards : 1st block map card displays the actors who are nearby to the current user, 2nd block display posts and campagnes with location nearby to the current user
-// |           └── settings_page.dart  // page paramettres : modifier mot de passe, deconnexion : sign out, log out, modifer profile, connsulter historique
+// │   
 // |
 // ├── services/                   // Business logic and services
 // │   ├── campagne_service.dart     // Service for managing campaigns
@@ -73,15 +68,21 @@
 // │   └── theme.dart              // Theme configuration
 // |
 // └── widgets/                    // Reusable UI components
+//     ├── bars/                   // App bars and navigation bars
+//     │   ├── header_bar.dart     // Header bar for FeedPage and similar screens
+//     │   └── bottom_nav_bar.dart // Bottom navigation bar for main navigation
 //     ├── buttons/
 //     │   ├── log_out_button.dart
 //     │   └── sign_out_button.dart
 //     ├── cards/
 //     │   ├── post_card.dart      // Card for displaying user information
 //     │   └── campagne_card.dart  // Card for displaying campaigns
-//     └── pages/
-//         ├── feed_page.dart      // will movee theis pages to screens folder than dapt it for each actor since they have a bit different roles when it comes to who can particpate to a campagne or not!
-//         ├── campagne_page.dart  // will movee this page to shared folder
-//         └── post_page.dart      // will movee this page to shared folder
+//     └── pages/                  // Shared pages used across actors
+//         ├── feed_page.dart      // (To be moved to screens folder and adapted for each actor)
+//         ├── campagne_page.dart  // Shared campaign details page
+//         ├── post_page.dart      // Shared post details page
+//         ├── map_page.dart       // Shared map page
+//         ├── search_page.dart    // Shared search page
+//         └── seetings_page.dart  // Shared settings page
 
 */

@@ -33,10 +33,7 @@ class MyApp extends StatelessWidget {
         themeMode: ThemeMode.system,
         debugShowCheckedModeBanner: false,
         initialRoute: RouteGenerator.splash,
-        onGenerateRoute: (settings) => RouteGenerator.generateRoute(
-          settings,
-          userType: 'defaultUserType',
-        ),
+        onGenerateRoute: RouteGenerator.generateRoute,
         builder: (context, child) => ThemeBackground(
           isDarkMode: Theme.of(context).brightness == Brightness.dark,
           child: child ?? const SizedBox.shrink(),

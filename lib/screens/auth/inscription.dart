@@ -106,156 +106,78 @@ class _InscriptionState extends State<Inscription> {
   Future<void> _signUp() async {
   if (!formKey.currentState!.validate()) return;
 
-  // Validate file for association or beneficiaire
+  // Validation du fichier pour association ou bénéficiaire
   if ((userType == 'association' || userType == 'bénéficiaire') && _selectedFile == null) {
-    setState(() {
-      _fileError = true;
-    });
+    setState(() => _fileError = true);
     return;
   } else {
-    setState(() {
-      _fileError = false;
-    });
+    setState(() => _fileError = false);
   }
 
-  setState(() {
-    _isLoading = true;
-  });
+  setState(() => _isLoading = true);
 
   try {
     final email = emailController.text.trim().toLowerCase();
     final password = passwordController.text.trim();
     final hashedPassword = _hashPassword(password);
 
-    // Carte d'identité: required for donateur/bénéficiaire, null for association
-    String? numCarteIdentite;
+    // Vérifier les doublons AVANT la transaction
     if (userType == 'donateur' || userType == 'bénéficiaire') {
-      if (numCarteIdentiteController.text.trim().isEmpty || numCarteIdentiteController.text.trim().length != 18) {
-        throw Exception('Le numéro de carte d\'identité doit comporter exactement 18 caractères.');
+      final existingCarteIdentite = await supabase
+          .from('utilisateur')
+          .select()
+          .eq('num_carte_identite', numCarteIdentiteController.text.trim())
+          .maybeSingle();
+      if (existingCarteIdentite != null) {
+        throw Exception('Ce numéro de carte d’identité est déjà utilisé.');
       }
-      numCarteIdentite = numCarteIdentiteController.text.trim();
-    } else {
-      numCarteIdentite = null;
     }
 
-    // Step 1: Sign up with Supabase Auth (use plain password)
-    final authResponse = await supabase.auth.signUp(
-      email: email,
-      password: password,
-    );
+    // Création de l'utilisateur Auth (hors transaction)
+    final authResponse = await supabase.auth.signUp(email: email, password: password);
     final userId = authResponse.user!.id;
 
-    // Step 2: Create historique
-    final historiqueResponse = await supabase
-        .from('historique')
-        .insert({
-          'date': DateTime.now().toIso8601String(),
-          'action': 'Compte créé',
-          'details': 'Création d’un nouveau compte utilisateur',
-          'id_acteur': null,
-        })
-        .select('id_historique')
-        .single();
-    final historiqueId = historiqueResponse['id_historique'] as int;
+    // Appel de la fonction stockée transactionnelle
+    final result = await supabase.rpc('create_user_with_transaction', params: {
+      'p_email': email,
+      'p_hashed_password': hashedPassword,
+      'p_user_id': userId,
+      'p_user_type': _normalizeUserType(userType),
+      'p_nom': nomController.text.trim(),
+      'p_prenom': prenomController.text.trim(),
+      'p_num_carte_identite': userType == 'donateur' || userType == 'bénéficiaire'
+          ? numCarteIdentiteController.text.trim()
+          : null,
+      'p_nom_association': userType == 'association' ? nomAssociationController.text.trim() : null,
+      'p_type_beneficiaire': userType == 'bénéficiaire' ? (typeBeneficiaire ?? 'autre') : null,
+    }).select().single();
 
-    // Step 3: Create dashboard
-    final dashboardResponse = await supabase
-        .from('dashboard')
-        .insert({'id_historique': historiqueId})
-        .select('id_dashboard')
-        .single();
-    final dashboardId = dashboardResponse['id_dashboard'] as int;
+    final idActeur = result['id_acteur'] as int;
 
-    // Step 4: Create profile
-    final profileResponse = await supabase
-        .from('profile')
-        .insert({
-          'photo_url': null,
-          'bio': null,
-          'id_dashboard': dashboardId,
-        })
-        .select('id_profile')
-        .single();
-    final profileId = profileResponse['id_profile'] as int;
-
-    // Step 5: Create acteur
-    final acteurResponse = await supabase
-        .from('acteur')
-        .insert({
-          'type_acteur': 'utilisateur',
-          'email': email,
-          'mot_de_passe': hashedPassword,
-          'id_profile': profileId,
-          'note_moyenne': 0.0,
-          'supabase_user_id': userId,
-        })
-        .select('id_acteur')
-        .single();
-    final idActeur = acteurResponse['id_acteur'] as int;
-
-    // Step 6: Update historique with id_acteur
-    await supabase
-        .from('historique')
-        .update({'id_acteur': idActeur})
-        .eq('id_historique', historiqueId);
-
-    // Step 7: Insert into utilisateur
-    await supabase.from('utilisateur').insert({
-      'id_acteur': idActeur,
-      'type_utilisateur': _normalizeUserType(userType), // donateur, association, beneficiaire
-      'telephone': null,
-      'adresse_utilisateur': null,
-      'num_carte_identite': numCarteIdentite,
-    });
-
-    // Step 8: Handle file upload and specific user type insertion
+    // Téléversement du fichier APRÈS la transaction
     String? documentUrl;
     if (_selectedFile != null) {
       final bucket = userType == 'association' ? 'association-documents' : 'beneficiaire-documents';
       final fileName = '${idActeur}_document_${userType}.${_fileName!.split('.').last}';
       if (kIsWeb) {
         if (_selectedFile!.bytes != null) {
-          await supabase.storage
-              .from(bucket)
-              .uploadBinary(fileName, _selectedFile!.bytes!);
+          await supabase.storage.from(bucket).uploadBinary(fileName, _selectedFile!.bytes!);
         }
       } else {
         final file = io.File(_selectedFile!.path!);
-        await supabase.storage
-            .from(bucket)
-            .uploadBinary(fileName, await file.readAsBytes());
+        await supabase.storage.from(bucket).uploadBinary(fileName, await file.readAsBytes());
       }
       documentUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
+
+      // Mettre à jour la table correspondante avec l'URL du document
+      if (userType == 'association') {
+        await supabase.from('association').update({'document_authorisation': documentUrl}).eq('id_acteur', idActeur);
+      } else if (userType == 'bénéficiaire') {
+        await supabase.from('beneficiaire').update({'document_situation': documentUrl}).eq('id_acteur', idActeur);
+      }
     }
 
-    switch (userType) {
-      case 'donateur':
-        await supabase.from('donateur').insert({
-          'id_acteur': idActeur,
-          'nom': nomController.text.trim(),
-          'prenom': prenomController.text.trim(),
-        });
-        break;
-      case 'association':
-        await supabase.from('association').insert({
-          'id_acteur': idActeur,
-          'nom_association': nomAssociationController.text.trim(),
-          'document_authorisation': documentUrl,
-          'statut_validation': false,
-        });
-        break;
-      case 'bénéficiaire':
-        await supabase.from('beneficiaire').insert({
-          'id_acteur': idActeur,
-          'nom': nomController.text.trim(),
-          'prenom': prenomController.text.trim(),
-          'type_beneficiaire': typeBeneficiaire ?? 'autre',
-          'document_situation': documentUrl,
-        });
-        break;
-    }
-
-    // Step 9: Redirect
+    // Redirection après succès
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Inscription réussie ! Bienvenue !')),
     );
@@ -271,11 +193,8 @@ class _InscriptionState extends State<Inscription> {
       errorMessage = error.message.contains('User already registered')
           ? 'Cet email est déjà enregistré.'
           : error.message;
-    } else if (error.toString().contains('unique constraint') &&
-        error.toString().contains('num_carte_identite')) {
-      errorMessage = 'Ce numéro de carte d\'identité est déjà utilisé.';
     } else if (error.toString().contains('num_carte_identite')) {
-      errorMessage = 'Le numéro de carte d\'identité doit comporter exactement 18 caractères.';
+      errorMessage = 'Ce numéro de carte d\'identité est déjà utilisé ou invalide.';
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -284,9 +203,7 @@ class _InscriptionState extends State<Inscription> {
       ),
     );
   } finally {
-    setState(() {
-      _isLoading = false;
-    });
+    setState(() => _isLoading = false);
   }
 }
 

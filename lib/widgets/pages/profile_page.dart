@@ -39,7 +39,8 @@ class _ProfilePageState extends State<ProfilePage> {
           .select('''
             id_acteur, type_acteur, nom_admin, prenom_admin, nom_association, email,
             donateur(nom, prenom), beneficiaire(nom, prenom),
-            profile(id_profile, photo_url, bio)
+            profile(id_profile, photo_url, bio),
+            utilisateur(type_utilisateur)
           ''')
           .eq('supabase_user_id', user.id)
           .single();
@@ -212,15 +213,17 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String _getDisplayName() {
-    final type = TypeActeur.values.byName(_userData?['type_acteur'] ?? 'donateur');
+    final typeActeur = _userData?['type_acteur'] ?? 'utilisateur';
+    final typeUtilisateur = _userData?['utilisateur']?['type_utilisateur']?.toString();
     String displayName = 'Utilisateur';
-    if (type == TypeActeur.admin) {
+
+    if (typeActeur == 'admin') {
       displayName = '${_userData?['prenom_admin']} ${_userData?['nom_admin']}';
     } else if (_userData?['nom_association'] != null) {
       displayName = _userData?['nom_association'];
-    } else if (_userData?['donateur'] != null) {
+    } else if (typeUtilisateur == 'donateur' && _userData?['donateur'] != null) {
       displayName = '${_userData?['donateur']['prenom']} ${_userData?['donateur']['nom']}';
-    } else if (_userData?['beneficiaire'] != null) {
+    } else if (typeUtilisateur == 'beneficiaire' && _userData?['beneficiaire'] != null) {
       displayName = '${_userData?['beneficiaire']['prenom']} ${_userData?['beneficiaire']['nom']}';
     }
     return displayName;
@@ -394,16 +397,16 @@ class _ProfilePageState extends State<ProfilePage> {
           topRight: Radius.circular(24),
         ),
         child: BottomNavigationBar(
-          currentIndex: 3, // Profile tab is selected
+          currentIndex: 4, // Profile tab is selected
           onTap: (index) {
-            if (index == 0) Navigator.pushReplacementNamed(context, '/feed');
-            if (index == 1) Navigator.pushReplacementNamed(context, '/donation-list');
-            if (index == 2) Navigator.pushReplacementNamed(context, '/my-donations');
-            // Index 3 is the current page (Profile)
+            if (index == 0) Navigator.pushReplacementNamed(context, '/home');
+            if (index == 1) Navigator.pushReplacementNamed(context, '/search');
+            if (index == 2) Navigator.pushReplacementNamed(context, '/create');
+            if (index == 3) Navigator.pushReplacementNamed(context, '/maps');
           },
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
-          selectedItemColor: LightAppPallete.primary,
+          selectedItemColor: LightAppPallete.accentDark,
           unselectedItemColor: Colors.grey,
           showSelectedLabels: true,
           showUnselectedLabels: true,

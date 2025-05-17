@@ -392,6 +392,21 @@ class CampagneService {
     }
   }
 
+    Future<List<Campagne>> getCampagnesByActeur(dynamic idActeur) async {
+    final response = await _client
+        .from('campagne')
+        .select()
+        .eq('id_acteur', idActeur);
+
+    if (response == null) {
+      return [];
+    }
+
+    return (response as List)
+        .map((data) => Campagne.fromMap(data))
+        .toList();
+  }
+
   /// Fetch campaign participants
   Future<List<int>> getCampagneParticipants(int campaignId) async {
     try {
