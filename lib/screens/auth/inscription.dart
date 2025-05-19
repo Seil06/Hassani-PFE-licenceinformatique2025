@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb; // For platform detection
 import 'package:flutter/material.dart';
-import 'package:myapp/routes/routes.dart';
+import 'package:myapp/routes/routes_association.dart';
+import 'package:myapp/routes/routes_beneficiaire.dart';
+import 'package:myapp/routes/routes_donateur.dart';
 import 'package:myapp/theme/theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:myapp/main.dart';
@@ -103,7 +105,7 @@ class _InscriptionState extends State<Inscription> {
     }
   }
 
-  Future<void> _signUp() async {
+   Future<void> _signUp() async {
   if (!formKey.currentState!.validate()) return;
 
   // Validation du fichier pour association ou bénéficiaire
@@ -121,7 +123,21 @@ class _InscriptionState extends State<Inscription> {
     final password = passwordController.text.trim();
     final hashedPassword = _hashPassword(password);
 
-    // Vérifier les doublons AVANT la transaction
+    // First, check if user already exists in Supabase Auth
+    try {
+      await supabase.auth.signInWithPassword(email: email, password: 'dummy');
+      // If no exception, user exists
+      throw Exception('Cet email est déjà enregistré.');
+    } on AuthException catch (e) {
+      // If auth fails with invalid credentials, user doesn't exist - this is good
+      if (!e.message.toLowerCase().contains('invalid login credentials')) {
+        // Some other auth error occurred
+        throw e;
+      }
+      // User doesn't exist, continue with registration
+    }
+
+    // Vérifier les doublons dans la base de données AVANT de créer l'utilisateur Auth
     if (userType == 'donateur' || userType == 'bénéficiaire') {
       final existingCarteIdentite = await supabase
           .from('utilisateur')
@@ -129,51 +145,88 @@ class _InscriptionState extends State<Inscription> {
           .eq('num_carte_identite', numCarteIdentiteController.text.trim())
           .maybeSingle();
       if (existingCarteIdentite != null) {
-        throw Exception('Ce numéro de carte d’identité est déjà utilisé.');
+        throw Exception('Ce numéro de carte d\'identité est déjà utilisé.');
       }
     }
 
-    // Création de l'utilisateur Auth (hors transaction)
-    final authResponse = await supabase.auth.signUp(email: email, password: password);
-    final userId = authResponse.user!.id;
+    // Check if email already exists in our database
+    final existingUser = await supabase
+        .from('acteur')
+        .select()
+        .eq('email', email)
+        .maybeSingle();
+    if (existingUser != null) {
+      throw Exception('Cet email est déjà enregistré.');
+    }
 
-    // Appel de la fonction stockée transactionnelle
-    final result = await supabase.rpc('create_user_with_transaction', params: {
-      'p_email': email,
-      'p_hashed_password': hashedPassword,
-      'p_user_id': userId,
-      'p_user_type': _normalizeUserType(userType),
-      'p_nom': nomController.text.trim(),
-      'p_prenom': prenomController.text.trim(),
-      'p_num_carte_identite': userType == 'donateur' || userType == 'bénéficiaire'
-          ? numCarteIdentiteController.text.trim()
-          : null,
-      'p_nom_association': userType == 'association' ? nomAssociationController.text.trim() : null,
-      'p_type_beneficiaire': userType == 'bénéficiaire' ? (typeBeneficiaire ?? 'autre') : null,
-    }).select().single();
-
-    final idActeur = result['id_acteur'] as int;
-
-    // Téléversement du fichier APRÈS la transaction
-    String? documentUrl;
-    if (_selectedFile != null) {
-      final bucket = userType == 'association' ? 'association-documents' : 'beneficiaire-documents';
-      final fileName = '${idActeur}_document_${userType}.${_fileName!.split('.').last}';
-      if (kIsWeb) {
-        if (_selectedFile!.bytes != null) {
-          await supabase.storage.from(bucket).uploadBinary(fileName, _selectedFile!.bytes!);
-        }
-      } else {
-        final file = io.File(_selectedFile!.path!);
-        await supabase.storage.from(bucket).uploadBinary(fileName, await file.readAsBytes());
+    // Now create the Auth user and database transaction together
+    User? authUser;
+    int? idActeur;
+    
+    try {
+      // Create Auth user
+      final authResponse = await supabase.auth.signUp(email: email, password: password);
+      authUser = authResponse.user;
+      
+      if (authUser == null) {
+        throw Exception('Erreur lors de la création du compte utilisateur.');
       }
-      documentUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
 
-      // Mettre à jour la table correspondante avec l'URL du document
-      if (userType == 'association') {
-        await supabase.from('association').update({'document_authorisation': documentUrl}).eq('id_acteur', idActeur);
-      } else if (userType == 'bénéficiaire') {
-        await supabase.from('beneficiaire').update({'document_situation': documentUrl}).eq('id_acteur', idActeur);
+      // Call the stored procedure with the Auth user ID
+      final result = await supabase.rpc('create_user_with_transaction', params: {
+        'p_email': email,
+        'p_hashed_password': hashedPassword,
+        'p_user_id': authUser.id,
+        'p_user_type': _normalizeUserType(userType),
+        'p_nom': nomController.text.trim(),
+        'p_prenom': prenomController.text.trim(),
+        'p_num_carte_identite': userType == 'donateur' || userType == 'bénéficiaire'
+            ? numCarteIdentiteController.text.trim()
+            : null,
+        'p_nom_association': userType == 'association' ? nomAssociationController.text.trim() : null,
+        'p_type_beneficiaire': userType == 'bénéficiaire' ? (typeBeneficiaire ?? 'autre') : null,
+      }).select().single();
+
+      idActeur = result['id_acteur'] as int;
+
+    } catch (dbError) {
+      // Re-throw the original database error
+      throw dbError;
+    }
+
+    // Téléversement du fichier APRÈS la transaction réussie
+    String? documentUrl;
+    if (_selectedFile != null && idActeur != null) {
+      try {
+        final bucket = userType == 'association' ? 'association-documents' : 'beneficiaire-documents';
+        final fileName = '${idActeur}_document_${userType}.${_fileName!.split('.').last}';
+        
+        if (kIsWeb) {
+          if (_selectedFile!.bytes != null) {
+            await supabase.storage.from(bucket).uploadBinary(fileName, _selectedFile!.bytes!);
+          }
+        } else {
+          final file = io.File(_selectedFile!.path!);
+          await supabase.storage.from(bucket).uploadBinary(fileName, await file.readAsBytes());
+        }
+        
+        documentUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
+
+        // Mettre à jour la table correspondante avec l'URL du document
+        if (userType == 'association') {
+          await supabase.from('association').update({'document_authorisation': documentUrl}).eq('id_acteur', idActeur);
+        } else if (userType == 'bénéficiaire') {
+          await supabase.from('beneficiaire').update({'document_situation': documentUrl}).eq('id_acteur', idActeur);
+        }
+      } catch (fileError) {
+        // File upload failed, but user is created. You might want to show a warning
+        print('File upload failed: $fileError');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Compte créé mais erreur lors du téléversement du fichier: ${fileError.toString()}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
     }
 
@@ -181,12 +234,14 @@ class _InscriptionState extends State<Inscription> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Inscription réussie ! Bienvenue !')),
     );
+    
     String nextRoute = userType == 'donateur'
-        ? RouteGenerator.donateurHome
+        ? RouteGeneratorDonateur.home // Donateur route
         : userType == 'association'
-            ? RouteGenerator.associationHome
-            : RouteGenerator.beneficiaireHome;
+            ? RouteGeneratorAssociation.home // Association route
+            : RouteGeneratorBeneficiaire.home; // Beneficiaire route
     Navigator.pushReplacementNamed(context, nextRoute);
+    
   } catch (error) {
     String errorMessage = 'Erreur : ${error.toString()}';
     if (error is AuthException) {
@@ -195,7 +250,10 @@ class _InscriptionState extends State<Inscription> {
           : error.message;
     } else if (error.toString().contains('num_carte_identite')) {
       errorMessage = 'Ce numéro de carte d\'identité est déjà utilisé ou invalide.';
+    } else if (error.toString().contains('déjà enregistré') || error.toString().contains('déjà utilisé')) {
+      errorMessage = error.toString().replaceAll('Exception: ', '');
     }
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(errorMessage),
@@ -206,7 +264,6 @@ class _InscriptionState extends State<Inscription> {
     setState(() => _isLoading = false);
   }
 }
-
 
   @override
   void dispose() {
@@ -461,7 +518,7 @@ class _InscriptionState extends State<Inscription> {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               _fileName != null
-                                  ? Icon(Icons.check_circle, color: Colors.green, size: 48)
+                                  ? Icon(Icons.check_circle, color: LightAppPallete.accent, size: 48)
                                   : Icon(Icons.cloud_upload, color: LightAppPallete.primary, size: 48),
                               const SizedBox(height: 12),
                               Text(
@@ -469,7 +526,7 @@ class _InscriptionState extends State<Inscription> {
                                     ? 'Document sélectionné: $_fileName'
                                     : userType == 'association'
                                         ? 'Déposer votre document d\'autorisation ici'
-                                        : 'Déposer votre document de situation ici',
+                                        : 'Déposer un document pour confirmer votre situation ici',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: _fileName != null ? Colors.black87 : Colors.grey.shade700,

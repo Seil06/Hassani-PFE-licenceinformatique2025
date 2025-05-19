@@ -82,11 +82,11 @@ SELECT setval('dashboard_id_dashboard_seq', 6);
 -- Create profiles with explicit IDs
 INSERT INTO profile (id_profile, photo_url, bio, id_dashboard)
 VALUES 
-    (2, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile2.jpg', 'Association caritative qui aide les plus démunis en Algérie depuis 2010.', 2),
-    (3, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile3.jpg', 'Association culturelle amazighe qui promeut la culture et les traditions berbères.', 3),
-    (4, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile4.jpg', 'Donatrice régulière passionnée par l''aide aux enfants et aux femmes en difficulté.', 4),
-    (5, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile5.jpg', 'Mère célibataire en recherche d''emploi avec deux enfants à charge.', 5),
-    (6, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile6.jpg', 'Orphelin qui a besoin de soutien pour ses études et son quotidien.', 6);
+    (2, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile2.png', 'Association caritative qui aide les plus démunis en Algérie depuis 2010.', 2),
+    (3, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile3.png', 'Association culturelle amazighe qui promeut la culture et les traditions berbères.', 3),
+    (4, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile4.png', 'Donatrice régulière passionnée par l''aide aux enfants et aux femmes en difficulté.', 4),
+    (5, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile5.png', 'Mère célibataire en recherche d''emploi avec deux enfants à charge.', 5),
+    (6, 'https://eouymrxocetlfxyyibou.supabase.co/storage/v1/object/public/profile//profile6.png', 'Orphelin qui a besoin de soutien pour ses études et son quotidien.', 6);
 
 -- Set the sequence to continue after our manual inserts
 SELECT setval('profile_id_profile_seq', 6);
@@ -478,6 +478,78 @@ INSERT INTO don (id_don, num_carte_bancaire, montant, date_don, type_don, etat_d
 VALUES (1, '1234567890123456', 10000.0, NOW(), 'financier', 'valide', 4, 4);
 
 
+
+-- Enable RLS on required tables
+ALTER TABLE utilisateur_suivi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campagne_suivi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campagne ENABLE ROW LEVEL SECURITY;
+
+-- 1. Followers/Following Policies (utilisateur_suivi)
+CREATE POLICY "Allow users to view their follow relationships" 
+ON utilisateur_suivi 
+FOR SELECT USING (
+  id_suiveur IN (SELECT id_acteur FROM acteur WHERE supabase_user_id = (select auth.uid()::text)) OR
+  id_suivi IN (SELECT id_acteur FROM acteur WHERE supabase_user_id = (select auth.uid()::text))
+);
+
+-- 2. Campaign Following Policies (campagne_suivi)
+CREATE POLICY "Allow users to view their followed campaigns" 
+ON campagne_suivi 
+FOR SELECT USING (
+  id_utilisateur = (SELECT id_acteur FROM acteur WHERE supabase_user_id = (select auth.uid()::text))
+);
+
+-- 3. Posts Policies
+CREATE POLICY "Allow users to view their own posts" 
+ON post 
+FOR SELECT USING (
+  id_acteur = (SELECT id_acteur FROM acteur WHERE supabase_user_id = (select auth.uid()::text))
+);
+
+-- 4. Campaigns Policies
+CREATE POLICY "Allow users to view campaigns they follow" 
+ON campagne 
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM campagne_suivi 
+    WHERE campagne_suivi.id_campagne = campagne.id_campagne
+    AND campagne_suivi.id_utilisateur = (SELECT id_acteur FROM acteur WHERE supabase_user_id = (select auth.uid()::text))
+  )
+);
+
+-- 5. Additional Policies for Related Data
+CREATE POLICY "Allow public read access to acteur profiles" 
+ON acteur 
+FOR SELECT USING (true);
+
+CREATE POLICY "Allow users to view their own donor info" 
+ON donateur 
+FOR SELECT USING (
+  id_acteur = (SELECT id_acteur FROM acteur WHERE supabase_user_id = (select auth.uid()::text))
+);
+
+CREATE INDEX idx_utilisateur_suivi_user ON utilisateur_suivi(id_suiveur, id_suivi);
+CREATE INDEX idx_campagne_suivi_user ON campagne_suivi(id_utilisateur);
+CREATE INDEX idx_post_author ON post(id_acteur);
+
+-- Enable read access to all
+create policy "Public read access"
+on storage.objects for select
+using ( bucket_id = 'post' );
+
+-- Enable uploads for authenticated users
+create policy "Authenticated insert access"
+on storage.objects for insert
+to authenticated
+with check ( bucket_id = 'post' );
+
+-- Enable updates for owner
+create policy "Owner update access"
+on storage.objects for update
+using ( auth.uid() = owner )
+with check ( bucket_id = 'post' );
+
 CREATE OR REPLACE FUNCTION create_user_with_transaction(
   p_email TEXT,
   p_hashed_password TEXT,
@@ -488,69 +560,83 @@ CREATE OR REPLACE FUNCTION create_user_with_transaction(
   p_num_carte_identite TEXT,
   p_nom_association TEXT,
   p_type_beneficiaire TEXT
-) RETURNS VOID AS $$
+) RETURNS TABLE(id_acteur INTEGER) AS $$
 DECLARE
   v_historique_id INTEGER;
   v_dashboard_id INTEGER;
   v_profile_id INTEGER;
   v_acteur_id INTEGER;
 BEGIN
-  -- Début de la transaction
+  -- Start the transaction  
   BEGIN
-    -- Insérer dans 'historique'
+    -- Check for existing email
+    IF EXISTS (SELECT 1 FROM acteur WHERE email = p_email) THEN
+      RAISE EXCEPTION 'Cet email est déjà enregistré.';
+    END IF;
+    
+    -- Check for existing carte d'identité if provided
+    IF p_num_carte_identite IS NOT NULL AND EXISTS (
+      SELECT 1 FROM utilisateur WHERE num_carte_identite = p_num_carte_identite
+    ) THEN
+      RAISE EXCEPTION 'Ce numéro de carte d''identité est déjà utilisé.';
+    END IF;
+    
+    -- Insert into 'historique'
     INSERT INTO historique (date, action, details)
-    VALUES (NOW(), 'Compte créé', 'Création d’un nouveau compte utilisateur')
+    VALUES (NOW(), 'Compte créé', 'Création d''un nouveau compte utilisateur')
     RETURNING id_historique INTO v_historique_id;
-
-    -- Insérer dans 'dashboard'
+    
+    -- Insert into 'dashboard'
     INSERT INTO dashboard (id_historique)
     VALUES (v_historique_id)
     RETURNING id_dashboard INTO v_dashboard_id;
-
-    -- Insérer dans 'profile'
+    
+    -- Insert into 'profile'
     INSERT INTO profile (id_dashboard)
     VALUES (v_dashboard_id)
     RETURNING id_profile INTO v_profile_id;
-
-    -- Insérer dans 'acteur'
+    
+    -- Insert into 'acteur'
     INSERT INTO acteur (
       type_acteur, email, mot_de_passe, id_profile, supabase_user_id
     ) VALUES (
       'utilisateur', p_email, p_hashed_password, v_profile_id, p_user_id
     )
     RETURNING id_acteur INTO v_acteur_id;
-
-    -- Mettre à jour 'historique' avec l'ID de l'acteur
+    
+    -- Update 'historique' with actor ID
     UPDATE historique SET id_acteur = v_acteur_id WHERE id_historique = v_historique_id;
-
-    -- Insérer dans 'utilisateur'
+    
+    -- Insert into 'utilisateur'
     INSERT INTO utilisateur (
       id_acteur, type_utilisateur, num_carte_identite
     ) VALUES (
       v_acteur_id, p_user_type, p_num_carte_identite
     );
-
-    -- Insérer dans la table spécifique (donateur/association/beneficiaire)
+    
+    -- Insert into specific table (donateur/association/beneficiaire)
     CASE p_user_type
       WHEN 'donateur' THEN
         INSERT INTO donateur (id_acteur, nom, prenom)
         VALUES (v_acteur_id, p_nom, p_prenom);
       WHEN 'association' THEN
-        INSERT INTO association (id_acteur, nom_association)
-        VALUES (v_acteur_id, p_nom_association);
+        INSERT INTO association (id_acteur, nom_association, document_authorisation, statut_validation)
+        VALUES (v_acteur_id, p_nom_association, '', FALSE);
       WHEN 'beneficiaire' THEN
-        INSERT INTO beneficiaire (id_acteur, nom, prenom, type_beneficiaire)
-        VALUES (v_acteur_id, p_nom, p_prenom, p_type_beneficiaire);
+        INSERT INTO beneficiaire (id_acteur, nom, prenom, type_beneficiaire, document_situation)
+        VALUES (v_acteur_id, p_nom, p_prenom, p_type_beneficiaire, '');
     END CASE;
-
-    -- Valider la transaction si tout réussit
-    COMMIT;
+    
+    -- Return the actor ID
+    RETURN QUERY SELECT v_acteur_id;
+    
   EXCEPTION
     WHEN others THEN
-      -- Annuler la transaction en cas d'erreur
-      ROLLBACK;
+      -- Transaction will be automatically rolled back
       RAISE;
   END;
 END;
 $$ LANGUAGE plpgsql;
 
+ALTER TABLE post 
+ALTER COLUMN id_don DROP NOT NULL;

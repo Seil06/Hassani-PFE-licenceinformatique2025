@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:myapp/routes/routes.dart';
+import 'package:myapp/routes/routes_association.dart';
+import 'package:myapp/routes/routes_beneficiaire.dart';
+import 'package:myapp/routes/routes_donateur.dart';
 import 'package:myapp/theme/app_pallete.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -213,13 +216,13 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
     try {
       switch (widget.userType.toLowerCase()) {
         case 'donateur':
-          Navigator.pushReplacementNamed(context, RouteGenerator.donateurHome);
+          Navigator.pushReplacementNamed(context, RouteGeneratorDonateur.home);
           break;
         case 'association':
-          Navigator.pushReplacementNamed(context, RouteGenerator.associationHome);
+          Navigator.pushReplacementNamed(context, RouteGeneratorAssociation.home);
           break;
         case 'bénéficiaire':
-          Navigator.pushReplacementNamed(context, RouteGenerator.beneficiaireHome);
+          Navigator.pushReplacementNamed(context, RouteGeneratorBeneficiaire.home);
           break;
         default:
           Navigator.pushReplacementNamed(context, RouteGenerator.login);
@@ -280,7 +283,7 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sélectionnez votre localisation'),
-        backgroundColor: Colors.green[600],
+        backgroundColor: LightAppPallete.accent,
         foregroundColor: Colors.white,
       ),
       body: Stack(
@@ -432,6 +435,12 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
                 const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: _isLoading || !_controller.isCompleted ? null : _saveLocation,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: LightAppPallete.primaryLight,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                   child: _isLoading
                       ? const SizedBox(
                           width: 20,
@@ -439,23 +448,17 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                         )
                       : const Text('Confirmer la localisation'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: LightAppPallete.primaryLight,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: _navigateToDashboard,
-                  child: const Text('Passer cette étape'),
                   style: TextButton.styleFrom(
                     foregroundColor: LightAppPallete.primaryLight,
-                    side: BorderSide(color: Colors.green[600]!),
+                    side: BorderSide(color: LightAppPallete.accentLight!),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
+                  child: const Text('Passer cette étape pour le moment'),
                 ),
               ],
             ),

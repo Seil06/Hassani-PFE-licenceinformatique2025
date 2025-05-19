@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/main.dart';
 import 'package:myapp/routes/routes.dart';
+import 'package:myapp/routes/routes_admin.dart';
+import 'package:myapp/routes/routes_association.dart';
+import 'package:myapp/routes/routes_beneficiaire.dart';
+import 'package:myapp/routes/routes_donateur.dart';
 import 'package:myapp/theme/app_pallete.dart';
 import 'package:myapp/theme/theme.dart';
 
@@ -43,7 +47,7 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
         final idActeur = response['id_acteur'] as int;
 
         if (typeActeur == 'admin') {
-          Navigator.of(context).pushReplacementNamed(RouteGenerator.adminHome);
+          Navigator.of(context).pushReplacementNamed(RouteGeneratorAdmin.home);
         } else {
           final userResponse = await supabase
               .from('utilisateur')
@@ -55,13 +59,13 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
 
           switch (typeUtilisateur) {
             case 'donateur':
-              Navigator.of(context).pushReplacementNamed(RouteGenerator.donateurHome);
+              Navigator.of(context).pushReplacementNamed(RouteGeneratorDonateur.home);
               break;
             case 'association':
-              Navigator.of(context).pushReplacementNamed(RouteGenerator.associationHome);
+              Navigator.of(context).pushReplacementNamed(RouteGeneratorAssociation.home);
               break;
             case 'beneficiaire':
-              Navigator.of(context).pushReplacementNamed(RouteGenerator.beneficiaireHome);
+              Navigator.of(context).pushReplacementNamed(RouteGeneratorBeneficiaire.home);
               break;
             default:
               ScaffoldMessenger.of(context).showSnackBar(

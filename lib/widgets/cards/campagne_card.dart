@@ -11,7 +11,7 @@ class CampagneCard extends StatefulWidget {
   const CampagneCard({
     super.key,
     required this.campagne,
-    required this.onDonate,
+    required this.onDonate, required Null Function() onTap,
   });
 
   @override
@@ -113,7 +113,7 @@ class _CampagneCardState extends State<CampagneCard> {
         );
       },
       child: Container(
-        width: 250,
+        width: 360,
         margin: const EdgeInsets.only(right: 16),
         decoration: BoxDecoration(
           color: LightAppPallete.backgroundAlt,
@@ -303,9 +303,10 @@ class _CampagneCardState extends State<CampagneCard> {
 
   Widget _buildActionsRow() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: List.generate(5, (index) {
             return IconButton(
               icon: Icon(
@@ -313,18 +314,39 @@ class _CampagneCardState extends State<CampagneCard> {
                 color: LightAppPallete.accent,
                 size: 16,
               ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
               onPressed: () {
                 _submitRating(index + 1.0);
               },
             );
           }),
         ),
-        ElevatedButton(
+        const SizedBox(width: 8),
+        OutlinedButton.icon(
           onPressed: _toggleFollow,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _isFollowing ? LightAppPallete.grey : LightAppPallete.accent,
+          icon: Icon(
+            _isFollowing ? Icons.check_circle : Icons.add_circle_outline,
+            color: _isFollowing ? LightAppPallete.accent : LightAppPallete.grey,
+            size: 20,
           ),
-          child: Text(_isFollowing ? 'Suivi' : 'Suivre'),
+          label: Text(
+            _isFollowing ? 'Suivi' : 'Suivre',
+            style: TextStyle(
+              color: _isFollowing ? LightAppPallete.accent : LightAppPallete.grey,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(
+              color: _isFollowing ? LightAppPallete.accent : LightAppPallete.grey,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          ),
         ),
       ],
     );

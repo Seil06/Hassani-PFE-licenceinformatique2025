@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:myapp/routes/routes_donateur.dart';
+import 'package:myapp/routes/routes_admin.dart';
+import 'package:myapp/routes/routes_association.dart';
+import 'package:myapp/routes/routes_beneficiaire.dart';
 import 'package:myapp/theme/theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:myapp/main.dart';
@@ -51,7 +55,7 @@ class _ConnexionState extends State<Connexion> {
       final idActeur = acteurResponse['id_acteur'] as int;
 
       if (typeActeur == 'admin') {
-        Navigator.pushReplacementNamed(context, RouteGenerator.adminHome);
+        Navigator.pushReplacementNamed(context, RouteGeneratorAdmin.home);
       } else {
         final userResponse = await supabase
             .from('utilisateur')
@@ -63,13 +67,13 @@ class _ConnexionState extends State<Connexion> {
 
         switch (typeUtilisateur) {
           case 'donateur':
-            Navigator.pushReplacementNamed(context, RouteGenerator.donateurHome);
+            Navigator.pushReplacementNamed(context, RouteGeneratorDonateur.home);
             break;
           case 'association':
-            Navigator.pushReplacementNamed(context, RouteGenerator.associationHome);
+            Navigator.pushReplacementNamed(context, RouteGeneratorAssociation.home);
             break;
           case 'beneficiaire':
-            Navigator.pushReplacementNamed(context, RouteGenerator.beneficiaireHome);
+            Navigator.pushReplacementNamed(context, RouteGeneratorBeneficiaire.home);
             break;
           default:
             ScaffoldMessenger.of(context).showSnackBar(

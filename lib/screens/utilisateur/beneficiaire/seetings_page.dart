@@ -3,14 +3,14 @@ import 'package:myapp/routes/routes.dart';
 import 'package:myapp/widgets/buttons/sign_out_button.dart';
 import 'package:myapp/widgets/buttons/modify_profile_button.dart'; // Add this import
 
-class SettingsPage extends StatefulWidget {
-  const SettingsPage({Key? key}) : super(key: key);
+class SettingsPageBeneficiaire extends StatefulWidget {
+  const SettingsPageBeneficiaire({Key? key}) : super(key: key);
 
   @override
-  _SettingsPageState createState() => _SettingsPageState();
+  _SettingsPageBeneficiaireState createState() => _SettingsPageBeneficiaireState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageBeneficiaireState extends State<SettingsPageBeneficiaire> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(

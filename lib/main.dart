@@ -4,7 +4,6 @@ import 'package:myapp/theme/theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'routes/routes.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

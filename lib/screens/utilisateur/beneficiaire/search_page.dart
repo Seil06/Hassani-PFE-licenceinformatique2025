@@ -6,14 +6,14 @@ import 'package:myapp/widgets/cards/post_card.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Stateful widget for searching posts by query or category
-class SearchPage extends StatefulWidget {
-  const SearchPage({super.key});
+class SearchPageBeneficiaire extends StatefulWidget {
+  const SearchPageBeneficiaire({super.key});
 
   @override
-  State<SearchPage> createState() => _SearchPageState();
+  State<SearchPageBeneficiaire> createState() => _SearchPageBeneficiaireState();
 }
 
-class _SearchPageState extends State<SearchPage> {
+class _SearchPageBeneficiaireState extends State<SearchPageBeneficiaire> {
   final _searchController = TextEditingController(); // Controller for search input
   List<Post> _posts = []; // List of search results
   MotCles? _selectedMotCle; // Selected category filter
@@ -67,8 +67,24 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Rechercher'),
-        backgroundColor: LightAppPallete.accentDark,
+        title: const Text('Trouver une publication'),
+        centerTitle: true,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Image.asset(
+              'assets/images/FatherDay.png',
+              height: 80,
+            ),
+          ),
+        ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+        backgroundColor: const Color.fromARGB(255, 245, 172, 197),
       ),
       body: SafeArea(
         child: Padding(
@@ -80,13 +96,13 @@ class _SearchPageState extends State<SearchPage> {
               TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Rechercher des publications...',
-                  prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
+                  hintText: 'Effectuer une recherche...',
+                  prefixIcon: Icon(Icons.search, color: LightAppPallete.primary),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   filled: true,
-                  fillColor: Colors.grey[200],
+                  fillColor: const Color.fromARGB(255, 245, 172, 197),
                 ),
               ),
               const SizedBox(height: 16),
@@ -108,15 +124,15 @@ class _SearchPageState extends State<SearchPage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
-                            color: isSelected ? LightAppPallete.accent : Colors.grey[200],
+                            color: isSelected ? LightAppPallete.accent : LightAppPallete.surfaceLight,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             children: [
                               Image.asset(
                                 _searchService.categoriesImages[motCle] ?? 'assets/icons/autre.ico',
-                                width: 20,
-                                height: 20,
+                                width: 40,
+                                height: 40,
                               ),
                               const SizedBox(width: 8),
                               Text(

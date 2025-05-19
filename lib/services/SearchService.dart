@@ -35,11 +35,11 @@ enum MotCles {
 
 class SearchService {
   Map<MotCles, String> categoriesImages = {
-    MotCles.urgence: 'assets/icons/Urgent-amico.ico',
-    MotCles.eau: 'assets/icons/Bottleofwater-pana.ico',
+    MotCles.urgence: 'assets/icons/Urgent.ico',
+    MotCles.eau: 'assets/icons/Bottleofwater.ico',
     MotCles.nourriture: 'assets/icons/nourriture.ico',
-    MotCles.affaire_scolaire: 'assets/icons/affaire_scolaire.ico',
-    MotCles.eidElFitr: 'assets/icons/EidElFitr.ico',
+    MotCles.affaire_scolaire: 'assets/icons/affairescolaire.ico',
+    MotCles.eidElFitr: 'assets/icons/Eidalfitr.ico', 
     MotCles.eidElAdha: 'assets/icons/EidElAdha.ico',
     MotCles.ramadan: 'assets/icons/Ramadan.ico',
     MotCles.sadaquah: 'assets/icons/sadaquah.ico',
@@ -56,10 +56,10 @@ class SearchService {
     MotCles.autre: 'assets/icons/autre1.ico',
     MotCles.vetementHivers: 'assets/icons/vetementHivers.ico',
     MotCles.inondations: 'assets/icons/Inondations.ico',
-    MotCles.tremblementDeTerre: 'assets/icons/tremblementDeTerre.ico',
+    MotCles.tremblementDeTerre: 'assets/icons/autre2.ico',
     MotCles.refuges: 'assets/icons/Refuges.ico',
     MotCles.femmes: 'assets/icons/femmes.ico',
-    MotCles.reservoirsOxygene: 'assets/icons/Reservoirs_oxygene.ico',
+    MotCles.reservoirsOxygene: 'assets/icons/Oxygene.ico',
   };
 
   final SupabaseClient _supabase = Supabase.instance.client;

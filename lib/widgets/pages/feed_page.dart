@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+/*import 'package:flutter/material.dart';
 import 'package:myapp/models/association.dart';
 import 'package:myapp/models/post.dart';
 import 'package:myapp/services/PostService.dart';
@@ -250,3 +250,4 @@ void _onNavItemTapped(int index) {
     );
   }
 }
+*/

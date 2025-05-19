@@ -31,27 +31,30 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   fpdart: ^1.1.0
-  google_fonts: ^6.2.1
-  supabase_flutter: ^2.8.4
+  percent_indicator: ^4.2.3
+  supabase_flutter: ^1.0.1
+  image_picker: ^1.1.2
+  permission_handler: ^12.0.0+1
   geolocator: ^14.0.0
   email_validator: ^3.0.0
   flutter_screenutil: ^5.9.3
-  image_picker: ^1.1.2
   file_picker: ^10.1.2
-  permission_handler: ^12.0.0+1
   shared_preferences: ^2.2.3
   crypto: ^3.0.3
-  google_maps_flutter: ^2.9.0
   duration : ^4.0.3
   intl: ^0.20.2
-  http: ^1.2.2
+  http: ^0.13.1
   cached_network_image: ^3.3.1
   hex: ^0.2.0
   convert: ^3.1.2
+  latlong2: ^0.9.1
+  google_maps_flutter: ^2.9.0  #^2.2.3
+  flutter_google_places: ^0.3.0 #google_places_flutter: ^2.0.7 
+  google_maps_webservice: ^0.0.20-nullsafety.5
+  uuid: ^4.5.1
+
   
 dev_dependencies:
   flutter_test:
@@ -80,6 +83,44 @@ flutter:
     - assets/images/images2/onboarding4.png
     - assets/images/profile.jpg
     - assets/images/transactions.png
+    - assets/images/FatherDay.png
+    - assets/images/images2/Charity.png
+
+    - assets/icons/affairescolaire.ico
+    - assets/icons/Animaux.ico
+    - assets/icons/autre1.ico
+    - assets/icons/autre2.ico
+    - assets/icons/Blooddonation.ico
+    - assets/icons/Boisement.ico
+    - assets/icons/Bottleofwater.ico
+    - assets/icons/CalculateurZakat.ico
+    - assets/icons/Eidalfitr.ico
+    - assets/icons/EidElAdha.ico
+    - assets/icons/Farmers.ico
+    - assets/icons/FathersDay.ico
+    - assets/icons/femmes.ico
+    - assets/icons/Hiver.ico
+    - assets/icons/Inondations.ico
+    - assets/icons/Islamicnewyear.ico
+    - assets/icons/logo.ico
+    - assets/icons/mariage.ico
+    - assets/icons/Medicalcare.ico
+    - assets/icons/medicament.ico
+    - assets/icons/MobileMarketing.ico
+    - assets/icons/mosquee.ico
+    - assets/icons/Mosqueonline.ico
+    - assets/icons/nourriture.ico
+    - assets/icons/Oxygene.ico
+    - assets/icons/Ramadan.ico
+    - assets/icons/Recyclage.ico
+    - assets/icons/Refuges.ico
+    - assets/icons/sadaquah.ico
+    - assets/icons/Sante.ico
+    - assets/icons/transactions.ico
+    - assets/icons/Urgent.ico
+    - assets/icons/vetement.ico
+    - assets/icons/vetementHivers.ico
+    - assets/icons/Yanayer.ico
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
